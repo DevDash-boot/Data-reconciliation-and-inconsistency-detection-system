@@ -84,4 +84,22 @@ public class Mismatch {
         this.diffDetail = diffDetail;
         this.status = MismatchStatus.OPEN;
     }
+
+    /**
+     * 상태를 바꾼다. 전이 규칙 검증은 호출하는 서비스가 한다. (MismatchStatus.canTransitionTo)
+     * OPEN 으로 되돌리면 처리자/처리 시각을 비운다.
+     */
+    public void changeStatus(MismatchStatus to, String by, String memo) {
+        this.status = to;
+        if (to == MismatchStatus.OPEN) {
+            this.resolvedBy = null;
+            this.resolvedAt = null;
+        } else {
+            this.resolvedBy = by;
+            this.resolvedAt = LocalDateTime.now();
+        }
+        if (memo != null) {
+            this.memo = memo;
+        }
+    }
 }
