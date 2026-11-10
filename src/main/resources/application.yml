@@ -32,6 +32,10 @@ recon:
     partitions: 16       # CHUNKED 모드의 청크 수 (#14 에서 4/16/64 비교)
   engine:
     default-mode: IN_MEMORY   # IN_MEMORY | CHUNKED
+  schedule:
+    enabled: false            # true 로 바꾸면 주기 대조가 켜진다 (#17)
+    cron: "0 0 2 * * *"       # 초 분 시 일 월 요일 : 매일 02:00
+    strategy: EXACT
 
 management:
   endpoints:
