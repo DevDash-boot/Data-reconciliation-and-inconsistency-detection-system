@@ -25,6 +25,11 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.CONFLICT, "CONFLICT", e.getMessage());
     }
 
+    @ExceptionHandler(JobFailedException.class)
+    public ResponseEntity<ErrorResponse> jobFailed(JobFailedException e) {
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, "JOB_FAILED", e.getMessage());
+    }
+
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ErrorResponse> tooLarge(MaxUploadSizeExceededException e) {
         return build(HttpStatus.PAYLOAD_TOO_LARGE, "FILE_TOO_LARGE", "업로드 파일이 너무 큽니다");

@@ -42,14 +42,11 @@ public class ReconciliationJob {
     @JoinColumn(name = "order_batch_id", nullable = false)
     private UploadBatch orderBatch;
 
-    /** 사용한 MatchingStrategy 이름 (예: EXACT, AMOUNT_ONLY) */
+    /** 사용한 MatchingStrategy 이름 (EXACT, AMOUNT_ONLY) */
     @Column(nullable = false, length = 50)
     private String strategy;
 
-    /**
-     * "동일 Job" 판별용 키 (예: paymentBatchId:orderBatchId:strategy).
-     * UNIQUE 여부와 재실행 정책은 이슈 #16 에서 결정한다.
-     */
+    /** "동일 Job" 판별용 키: paymentBatchId:orderBatchId:strategy */
     @Column(name = "job_key", length = 100)
     private String jobKey;
 
@@ -63,14 +60,12 @@ public class ReconciliationJob {
     @Column(name = "finished_at")
     private LocalDateTime finishedAt;
 
-    // ---- 결과 요약 ----
     @Column(name = "total_a", nullable = false)
     private int totalA;
 
     @Column(name = "total_b", nullable = false)
     private int totalB;
 
-    /** 범위 규칙에 따라 대조에서 제외된 행 수 */
     @Column(name = "excluded_a", nullable = false)
     private int excludedA;
 
@@ -104,5 +99,31 @@ public class ReconciliationJob {
         this.strategy = strategy;
         this.jobKey = jobKey;
         this.status = JobStatus.PENDING;
+    }
+
+    public void markRunning() {
+        this.status = JobStatus.RUNNING;
+        this.startedAt = LocalDateTime.now();
+    }
+
+    public void markSuccess(JobSummary s) {
+        this.totalA = s.totalA();
+        this.totalB = s.totalB();
+        this.excludedA = s.excludedA();
+        this.excludedB = s.excludedB();
+        this.missingInACount = s.missingInA();
+        this.missingInBCount = s.missingInB();
+        this.duplicateCount = s.duplicate();
+        this.valueDiffCount = s.valueDiff();
+        this.status = JobStatus.SUCCESS;
+        this.finishedAt = LocalDateTime.now();
+        this.errorMessage = null;
+    }
+
+    public void markFailed(String message) {
+        this.status = JobStatus.FAILED;
+        this.finishedAt = LocalDateTime.now();
+        this.errorMessage = (message == null) ? "알 수 없는 오류"
+                : (message.length() > 1000 ? message.substring(0, 1000) : message);
     }
 }
