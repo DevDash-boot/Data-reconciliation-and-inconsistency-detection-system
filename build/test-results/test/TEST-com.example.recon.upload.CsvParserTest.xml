@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.example.recon.upload.CsvParserTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-11-10T01:05:52.609Z" hostname="DESKTOP-6CJ2S1B" time="0.003">
+  <properties/>
+  <testcase name="따옴표 안의 쉼표는 구분자가 아니다" classname="com.example.recon.upload.CsvParserTest" time="0.001"/>
+  <testcase name="&quot;&quot; 는 따옴표 한 글자로 해석한다" classname="com.example.recon.upload.CsvParserTest" time="0.001"/>
+  <testcase name="끝의 쉼표는 빈 컬럼이다" classname="com.example.recon.upload.CsvParserTest" time="0.0"/>
+  <testcase name="쉼표로 컬럼을 나눈다" classname="com.example.recon.upload.CsvParserTest" time="0.0"/>
+  <testcase name="따옴표가 닫히지 않으면 예외" classname="com.example.recon.upload.CsvParserTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

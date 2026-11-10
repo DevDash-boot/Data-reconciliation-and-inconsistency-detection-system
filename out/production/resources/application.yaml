@@ -1,0 +1,44 @@
+
+spring:
+    config:
+        import: optional:file:.env[.properties]
+
+    application:
+        name: DataReconciliation
+
+    datasource:
+        url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:dataReconciliation}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&useUnicode=true
+        username: ${DB_USERNAME}
+        password: ${DB_PASSWORD}
+        driver-class-name: com.mysql.cj.jdbc.Driver
+
+    jpa:
+        hibernate:
+            ddl-auto: ${JPA_DDL_AUTO:update}
+        open-in-view: false
+
+    ai:
+        google:
+            genai:
+                api-key: ${GEMINI_API_KEY}
+                chat:
+                    model: gemini-2.5-flash
+
+oauth2:
+    kakao:
+        client-id: ${KAKAO_CLIENT_ID}
+        client-secret: ${KAKAO_CLIENT_SECRET}
+        redirect-uri: ${KAKAO_REDIRECT_URI}
+        authorization-uri: https://kauth.kakao.com/oauth/authorize
+        token-uri: https://kauth.kakao.com/oauth/token
+        user-info-uri: https://kapi.kakao.com/v2/user/me
+
+jwt:
+    secret: ${JWT_SECRET}
+    access-token-expiration-ms: ${JWT_ACCESS_EXPIRATION_MS}
+    refresh-token-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS}
+
+portone:
+    api-secret: ${PORTONE_API_SECRET}
+    store-id: ${PORTONE_STORE_ID}
+    channel-key: ${PORTONE_CHANNEL_KEY}
