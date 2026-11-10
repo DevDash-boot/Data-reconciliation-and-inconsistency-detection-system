@@ -1,0 +1,50 @@
+{{> partials/header}}
+<h4 class="mb-3">대시보드 <small class="text-muted">{{scopeLabel}}</small></h4>
+
+<form class="row g-2 mb-4" method="get" action="/dashboard">
+  <div class="col-auto"><input class="form-control" type="number" name="jobId" placeholder="Job ID (비우면 전체)" value="{{jobId}}"></div>
+  <div class="col-auto"><button class="btn btn-primary" type="submit">조회</button></div>
+</form>
+
+<div class="row mb-4">
+  <div class="col-md-3"><div class="card text-center"><div class="card-body">
+    <div class="text-muted">전체 불일치</div><div class="display-6">{{total}}</div>
+  </div></div></div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-md-4"><div class="card"><div class="card-header">유형별</div><div class="card-body"><canvas id="typeChart"></canvas></div></div></div>
+  <div class="col-md-4"><div class="card"><div class="card-header">상태별</div><div class="card-body"><canvas id="statusChart"></canvas></div></div></div>
+  <div class="col-md-4"><div class="card"><div class="card-header">일별 발견 추이 (최근 14일)</div><div class="card-body"><canvas id="dailyChart"></canvas></div></div></div>
+</div>
+
+<h6>최근 대조 Job</h6>
+<table class="table table-sm">
+  <thead><tr><th>Job</th><th>상태</th><th>전략</th><th>A</th><th>B</th><th>불일치</th><th></th></tr></thead>
+  <tbody>
+  {{#jobs}}
+    <tr><td>#{{id}}</td><td>{{status}}</td><td>{{strategy}}</td><td>{{totalA}}</td><td>{{totalB}}</td><td>{{mismatches}}</td>
+        <td><a href="/mismatches?jobId={{id}}">보기</a></td></tr>
+  {{/jobs}}
+  {{^hasJobs}}<tr><td colspan="7" class="text-muted text-center">아직 실행된 Job 이 없습니다</td></tr>{{/hasJobs}}
+  </tbody>
+</table>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+  new Chart(document.getElementById('typeChart'), {
+    type: 'doughnut',
+    data: { labels: {{{typeLabelsJson}}}, datasets: [{ data: {{{typeValuesJson}}} }] }
+  });
+  new Chart(document.getElementById('statusChart'), {
+    type: 'bar',
+    data: { labels: {{{statusLabelsJson}}}, datasets: [{ label: '건수', data: {{{statusValuesJson}}} }] },
+    options: { plugins: { legend: { display: false } } }
+  });
+  new Chart(document.getElementById('dailyChart'), {
+    type: 'line',
+    data: { labels: {{{dailyLabelsJson}}}, datasets: [{ label: '건수', data: {{{dailyValuesJson}}}, tension: 0.2 }] },
+    options: { plugins: { legend: { display: false } } }
+  });
+</script>
+{{> partials/footer}}
