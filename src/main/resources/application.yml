@@ -12,7 +12,8 @@ spring:
       max-request-size: 500MB
 
   datasource:
-    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:recon}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    # rewriteBatchedStatements=true : JDBC batch 를 여러 행짜리 INSERT 하나로 묶어 보낸다 (#13)
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:recon}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&rewriteBatchedStatements=true
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
 
@@ -23,6 +24,10 @@ spring:
     properties:
       hibernate:
         format_sql: true
+
+recon:
+  jdbc:
+    batch-size: 1000     # JDBC batch 한 번에 보내는 행 수 (#13 에서 500/1000/5000 비교)
 
 management:
   endpoints:
