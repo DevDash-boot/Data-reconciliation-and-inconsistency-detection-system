@@ -3,15 +3,21 @@ package com.example.recon.matching;
 import com.example.recon.mismatch.MismatchType;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
 
 /**
- * 대조 엔진 v2.
- * v1 과 달라진 점: 값 비교 규칙을 MatchingStrategy 로 분리했다. 엔진은 어떤 규칙인지 모른다.
- * (중복 키 처리는 아직 없다. #8)
+ * 대조 엔진 v3.
+ * v2 와 달라진 점: 같은 키를 목록으로 묶어서 DUPLICATE 를 탐지하고, 키 하나당 불일치 1건 규칙을 지킨다.
+ *
+ * 우선순위 (Wiki 2번 "유형 우선순위")
+ *  1. DUPLICATE    : 한쪽에라도 같은 키가 2건 이상 (어느 행을 비교할지 모호하므로 값 비교는 하지 않는다)
+ *  2. MISSING_IN_A / MISSING_IN_B : 키가 한쪽에만 있다
+ *  3. VALUE_DIFF   : 양쪽에 1건씩 있고 값이 다르다
+ *
+ * 결과는 키 순서로 정렬되어 항상 같은 순서로 나온다.
  */
 public final class ReconciliationEngine {
 
@@ -26,30 +32,39 @@ public final class ReconciliationEngine {
     }
 
     public ReconciliationResult reconcile(List<Row> a, List<Row> b) {
-        Map<String, Row> mapA = new HashMap<>();
-        for (Row r : a) {
-            mapA.put(r.key(), r);
-        }
-        Map<String, Row> mapB = new HashMap<>();
-        for (Row r : b) {
-            mapB.put(r.key(), r);
-        }
+        Map<String, List<Row>> groupA = group(a);
+        Map<String, List<Row>> groupB = group(b);
+
+        TreeSet<String> keys = new TreeSet<>(groupA.keySet());
+        keys.addAll(groupB.keySet());
 
         List<MismatchItem> items = new ArrayList<>();
-        for (Map.Entry<String, Row> e : mapA.entrySet()) {
-            Row rb = mapB.get(e.getKey());
-            if (rb == null) {
-                items.add(new MismatchItem(e.getKey(), MismatchType.MISSING_IN_B, ""));
-            } else if (!strategy.compare(e.getValue(), rb).isEmpty()) {
-                items.add(new MismatchItem(e.getKey(), MismatchType.VALUE_DIFF, ""));
+        for (String key : keys) {
+            List<Row> la = groupA.getOrDefault(key, List.of());
+            List<Row> lb = groupB.getOrDefault(key, List.of());
+
+            if (la.size() > 1 || lb.size() > 1) {
+                items.add(new MismatchItem(key, MismatchType.DUPLICATE,
+                        DiffDetailJson.duplicate(la.size(), lb.size())));
+            } else if (la.isEmpty()) {
+                items.add(new MismatchItem(key, MismatchType.MISSING_IN_A, DiffDetailJson.missing("B")));
+            } else if (lb.isEmpty()) {
+                items.add(new MismatchItem(key, MismatchType.MISSING_IN_B, DiffDetailJson.missing("A")));
+            } else {
+                List<FieldDiff> diffs = strategy.compare(la.get(0), lb.get(0));
+                if (!diffs.isEmpty()) {
+                    items.add(new MismatchItem(key, MismatchType.VALUE_DIFF, DiffDetailJson.valueDiff(diffs)));
+                }
             }
         }
-        for (String key : mapB.keySet()) {
-            if (!mapA.containsKey(key)) {
-                items.add(new MismatchItem(key, MismatchType.MISSING_IN_A, ""));
-            }
-        }
-        items.sort(Comparator.comparing(MismatchItem::key));
         return new ReconciliationResult(items);
+    }
+
+    private static Map<String, List<Row>> group(List<Row> rows) {
+        Map<String, List<Row>> map = new HashMap<>();
+        for (Row r : rows) {
+            map.computeIfAbsent(r.key(), k -> new ArrayList<>(1)).add(r);
+        }
+        return map;
     }
 }
