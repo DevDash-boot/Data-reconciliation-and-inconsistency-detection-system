@@ -1,0 +1,15 @@
+# 성능 측정 전용 프로파일: --spring.profiles.active=perf
+server:
+  port: 0            # 측정 중 포트 충돌 방지
+
+spring:
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+
+logging:
+  level:
+    org.hibernate.SQL: warn
+    com.example.recon: info
