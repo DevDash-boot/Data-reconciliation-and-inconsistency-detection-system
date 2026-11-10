@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.example.recon.upload.UploadServiceTests" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-11-10T01:05:52.612Z" hostname="DESKTOP-6CJ2S1B" time="0.032">
+  <properties/>
+  <testcase name="주문 CSV 를 업로드하면 주문 테이블에 저장된다" classname="com.example.recon.upload.UploadServiceTests" time="0.007"/>
+  <testcase name="결제 CSV 를 업로드하면 정상 행만 저장되고 이력이 남는다" classname="com.example.recon.upload.UploadServiceTests" time="0.011"/>
+  <system-out><![CDATA[2026-11-10T10:05:52.615+09:00  INFO 5996 --- [recon] [    Test worker] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.example.recon.upload.UploadServiceTests]: UploadServiceTests does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-11-10T10:05:52.623+09:00  INFO 5996 --- [recon] [    Test worker] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.example.recon.ReconApplication for test class com.example.recon.upload.UploadServiceTests
+2026-11-10T10:05:52.624+09:00  INFO 5996 --- [recon] [    Test worker] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.example.recon.upload.UploadServiceTests]: UploadServiceTests does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-11-10T10:05:52.624+09:00  INFO 5996 --- [recon] [    Test worker] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.example.recon.ReconApplication for test class com.example.recon.upload.UploadServiceTests
+Hibernate: 
+    insert 
+    into
+        upload_batch
+        (created_at, error_rows, file_name, total_rows, type, valid_rows, id) 
+    values
+        (?, ?, ?, ?, ?, ?, default)
+Hibernate: 
+    insert 
+    into
+        source_order
+        (batch_id, order_no, ordered_at, row_no, status, total_amount, id) 
+    values
+        (?, ?, ?, ?, ?, ?, default)
+Hibernate: 
+    select
+        count(so1_0.id) 
+    from
+        source_order so1_0 
+    where
+        so1_0.batch_id=?
+Hibernate: 
+    insert 
+    into
+        upload_batch
+        (created_at, error_rows, file_name, total_rows, type, valid_rows, id) 
+    values
+        (?, ?, ?, ?, ?, ?, default)
+Hibernate: 
+    insert 
+    into
+        source_payment
+        (amount, batch_id, merchant_uid, paid_at, payment_id, row_no, status, id) 
+    values
+        (?, ?, ?, ?, ?, ?, ?, default)
+Hibernate: 
+    select
+        count(sp1_0.id) 
+    from
+        source_payment sp1_0 
+    where
+        sp1_0.batch_id=?
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
