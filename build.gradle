@@ -71,3 +71,10 @@ tasks.register('generateSample', JavaExec) {
     }
     args = opts
 }
+
+// 힙 크기 지정 예: ./gradlew bootRun -Pxmx=512m --args="..."
+tasks.named('bootRun') {
+    if (project.hasProperty('xmx')) {
+        jvmArgs = ["-Xmx${project.property('xmx')}".toString()]
+    }
+}
