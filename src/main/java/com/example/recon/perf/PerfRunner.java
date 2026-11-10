@@ -33,7 +33,7 @@ import java.util.List;
  *  --perf.repeat=3            측정 횟수 (평균 계산)
  *  --perf.warmup=1            버리는 워밍업 횟수
  *  --perf.strategy=EXACT
- *  --perf.mode=IN_MEMORY      (#14 이후) IN_MEMORY | CHUNKED
+ *  --perf.mode=IN_MEMORY      IN_MEMORY | CHUNKED (생략하면 설정값)
  *
  * 매 실행마다 테이블을 비우고 업로드 -> 대조까지 단계별 시간을 재고, 결과가 expected 와 같은지 검증한다.
  */
@@ -59,6 +59,7 @@ public class PerfRunner implements ApplicationRunner {
         }
         String label = option(args, "perf.label", "baseline");
         String strategy = option(args, "perf.strategy", "EXACT");
+        String mode = option(args, "perf.mode", null);
         int repeat = Integer.parseInt(option(args, "perf.repeat", "3"));
         int warmup = Integer.parseInt(option(args, "perf.warmup", "1"));
 
@@ -72,7 +73,7 @@ public class PerfRunner implements ApplicationRunner {
         List<Run> measured = new ArrayList<>();
         boolean allOk = true;
         for (int i = 1; i <= warmup + repeat; i++) {
-            Run r = runOnce(dir, strategy, expected);
+            Run r = runOnce(dir, strategy, mode, expected);
             boolean isWarmup = i <= warmup;
             System.out.println((isWarmup ? "[워밍업] " : "[측정 " + (i - warmup) + "] ")
                     + "업로드A " + sec(r.uploadA) + " / 업로드B " + sec(r.uploadB)
@@ -100,7 +101,7 @@ public class PerfRunner implements ApplicationRunner {
         System.exit(allOk ? exit : 1);
     }
 
-    private Run runOnce(Path dir, String strategy, SampleDataGenerator.Expected expected) throws Exception {
+    private Run runOnce(Path dir, String strategy, String mode, SampleDataGenerator.Expected expected) throws Exception {
         clean();
         long t0 = System.nanoTime();
         UploadResult a = uploadService.upload(UploadType.PAYMENT, "payments.csv",
@@ -109,7 +110,7 @@ public class PerfRunner implements ApplicationRunner {
         UploadResult b = uploadService.upload(UploadType.ORDER, "orders.csv",
                 Files.newInputStream(dir.resolve(SampleDataGenerator.ORDERS_FILE)));
         long t2 = System.nanoTime();
-        JobResponse job = jobService.run(JobRequest.of(a.batchId(), b.batchId(), strategy));
+        JobResponse job = jobService.run(new JobRequest(a.batchId(), b.batchId(), strategy, mode, null));
         long t3 = System.nanoTime();
 
         boolean ok = job.missingInA() == expected.missingInA()

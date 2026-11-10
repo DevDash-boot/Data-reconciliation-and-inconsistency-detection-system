@@ -12,13 +12,11 @@ import com.example.recon.matching.Row;
 import com.example.recon.matching.ScopeRules;
 import com.example.recon.mismatch.MismatchBatchWriter;
 import com.example.recon.mismatch.MismatchType;
-import com.example.recon.source.SourceOrderRepository;
-import com.example.recon.source.SourcePaymentRepository;
 import com.example.recon.upload.UploadBatch;
 import com.example.recon.upload.UploadBatchRepository;
 import com.example.recon.upload.UploadType;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,37 +29,47 @@ import java.util.Map;
 /**
  * 대조 Job 실행 (동기).
  *
- * 트랜잭션을 세 단계로 나눈 이유
- *  1) Job 생성(RUNNING)은 먼저 커밋한다  -> 실행 중 실패해도 Job 기록이 남는다
- *  2) 대조 + 결과 저장은 한 트랜잭션     -> 실패하면 불일치가 부분 저장되지 않는다 (롤백)
- *  3) 실패하면 별도 트랜잭션에서 FAILED  -> 롤백과 무관하게 실패 상태가 남는다
+ * v14: 실행 방식 두 가지
+ *  - IN_MEMORY : 전체를 읽어 한 번에 대조
+ *  - CHUNKED   : 키 해시로 N 개 청크로 나눠, 청크마다 읽기 -> 대조 -> 저장 후 메모리를 비운다
  *
- * v13: 불일치 저장을 JPA saveAll 대신 JDBC batch(MismatchBatchWriter)로 바꿨다.
+ * 두 방식은 같은 process() 를 쓰므로 결과가 같아야 한다. (같은 키는 항상 같은 청크로 가므로 경계 문제가 없다)
+ * 트랜잭션 구조는 v9 와 같다: Job 생성 커밋 -> 대조+저장 한 트랜잭션 -> 실패 시 별도 트랜잭션에서 FAILED.
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class ReconciliationJobService {
 
     private final UploadBatchRepository batchRepository;
     private final ReconciliationJobRepository jobRepository;
-    private final SourcePaymentRepository paymentRepository;
-    private final SourceOrderRepository orderRepository;
+    private final RowLoader rowLoader;
     private final MismatchBatchWriter mismatchWriter;
     private final PlatformTransactionManager transactionManager;
+    private final int partitions;
+    private final String defaultMode;
+
+    public ReconciliationJobService(UploadBatchRepository batchRepository,
+                                    ReconciliationJobRepository jobRepository,
+                                    RowLoader rowLoader,
+                                    MismatchBatchWriter mismatchWriter,
+                                    PlatformTransactionManager transactionManager,
+                                    @Value("${recon.chunk.partitions:16}") int partitions,
+                                    @Value("${recon.engine.default-mode:IN_MEMORY}") String defaultMode) {
+        this.batchRepository = batchRepository;
+        this.jobRepository = jobRepository;
+        this.rowLoader = rowLoader;
+        this.mismatchWriter = mismatchWriter;
+        this.transactionManager = transactionManager;
+        this.partitions = partitions;
+        this.defaultMode = defaultMode;
+    }
 
     public JobResponse run(JobRequest request) {
         if (request == null || request.paymentBatchId() == null || request.orderBatchId() == null) {
             throw new BadRequestException("paymentBatchId, orderBatchId 가 필요합니다");
         }
-        String strategyName = (request.strategy() == null || request.strategy().isBlank())
-                ? ExactMatchStrategy.NAME : request.strategy().trim().toUpperCase();
-        MatchingStrategy strategy;
-        try {
-            strategy = MatchingStrategies.of(strategyName);
-        } catch (IllegalArgumentException e) {
-            throw new BadRequestException(e.getMessage());
-        }
+        MatchingStrategy strategy = resolveStrategy(request.strategy());
+        ExecutionMode mode = resolveMode(request.mode());
         requireBatch(request.paymentBatchId(), UploadType.PAYMENT);
         requireBatch(request.orderBatchId(), UploadType.ORDER);
 
@@ -80,7 +88,7 @@ public class ReconciliationJobService {
         });
 
         try {
-            return tx.execute(status -> execute(jobId, strategy));
+            return tx.execute(status -> execute(jobId, strategy, mode));
         } catch (RuntimeException e) {
             log.error("Job #{} 실행 실패", jobId, e);
             tx.executeWithoutResult(status ->
@@ -89,35 +97,61 @@ public class ReconciliationJobService {
         }
     }
 
-    private JobResponse execute(Long jobId, MatchingStrategy strategy) {
+    private JobResponse execute(Long jobId, MatchingStrategy strategy, ExecutionMode mode) {
         ReconciliationJob job = jobRepository.findById(jobId).orElseThrow();
-        Map<String, Long> timings = new LinkedHashMap<>();
+        long paymentBatchId = job.getPaymentBatch().getId();
+        long orderBatchId = job.getOrderBatch().getId();
+        ReconciliationEngine engine = new ReconciliationEngine(strategy);
+        Totals totals = new Totals();
 
-        long t0 = System.nanoTime();
-        List<Row> rawA = paymentRepository.findByBatchId(job.getPaymentBatch().getId()).stream()
-                .map(p -> new Row(p.getMerchantUid(), p.getAmount(), p.getStatus())).toList();
-        List<Row> rawB = orderRepository.findByBatchId(job.getOrderBatch().getId()).stream()
-                .map(o -> new Row(o.getOrderNo(), o.getTotalAmount(), o.getStatus())).toList();
+        if (mode == ExecutionMode.IN_MEMORY) {
+            long t0 = System.nanoTime();
+            List<Row> rawA = rowLoader.loadPayments(paymentBatchId);
+            List<Row> rawB = rowLoader.loadOrders(orderBatchId);
+            totals.loadNs += System.nanoTime() - t0;
+            process(jobId, rawA, rawB, engine, totals);
+        } else {
+            for (int p = 0; p < partitions; p++) {
+                long t0 = System.nanoTime();
+                List<Row> rawA = rowLoader.loadPayments(paymentBatchId, partitions, p);
+                List<Row> rawB = rowLoader.loadOrders(orderBatchId, partitions, p);
+                totals.loadNs += System.nanoTime() - t0;
+                process(jobId, rawA, rawB, engine, totals);
+                log.debug("Job #{} 청크 {}/{} 완료 (A {}행, B {}행)", jobId, p + 1, partitions, rawA.size(), rawB.size());
+            }
+        }
+
+        job.markSuccess(totals.toSummary());
+        Map<String, Long> timings = new LinkedHashMap<>();
+        timings.put("loadMs", totals.loadNs / 1_000_000);
+        timings.put("compareMs", totals.compareNs / 1_000_000);
+        timings.put("saveMs", totals.saveNs / 1_000_000);
+        log.info("Job #{} 완료 ({}): A={}, B={}, 불일치={}, 시간={}", jobId, mode,
+                totals.totalA, totals.totalB, totals.missingInA + totals.missingInB + totals.duplicate + totals.valueDiff,
+                timings);
+        return JobResponse.from(job, timings, false);
+    }
+
+    /** 범위 규칙 적용 -> 대조 -> 불일치 저장. 두 방식이 공통으로 쓴다. */
+    private void process(long jobId, List<Row> rawA, List<Row> rawB, ReconciliationEngine engine, Totals t) {
+        long c0 = System.nanoTime();
         ScopeRules.Scoped a = ScopeRules.scopeA(rawA);
         ScopeRules.Scoped b = ScopeRules.scopeB(rawB);
-        long t1 = System.nanoTime();
-
-        ReconciliationResult result = new ReconciliationEngine(strategy).reconcile(a.rows(), b.rows());
-        long t2 = System.nanoTime();
-
+        ReconciliationResult result = engine.reconcile(a.rows(), b.rows());
+        long c1 = System.nanoTime();
         mismatchWriter.insertAll(jobId, result.items());
-        long t3 = System.nanoTime();
+        long c2 = System.nanoTime();
 
-        job.markSuccess(new JobSummary(a.rows().size(), b.rows().size(), a.excluded(), b.excluded(),
-                result.count(MismatchType.MISSING_IN_A), result.count(MismatchType.MISSING_IN_B),
-                result.count(MismatchType.DUPLICATE), result.count(MismatchType.VALUE_DIFF)));
-
-        timings.put("loadMs", (t1 - t0) / 1_000_000);
-        timings.put("compareMs", (t2 - t1) / 1_000_000);
-        timings.put("saveMs", (t3 - t2) / 1_000_000);
-        log.info("Job #{} 완료: A={}, B={}, 불일치={}, 시간={}", jobId,
-                a.rows().size(), b.rows().size(), result.items().size(), timings);
-        return JobResponse.from(job, timings, false);
+        t.compareNs += c1 - c0;
+        t.saveNs += c2 - c1;
+        t.totalA += a.rows().size();
+        t.totalB += b.rows().size();
+        t.excludedA += a.excluded();
+        t.excludedB += b.excluded();
+        t.missingInA += result.count(MismatchType.MISSING_IN_A);
+        t.missingInB += result.count(MismatchType.MISSING_IN_B);
+        t.duplicate += result.count(MismatchType.DUPLICATE);
+        t.valueDiff += result.count(MismatchType.VALUE_DIFF);
     }
 
     @Transactional(readOnly = true)
@@ -133,6 +167,29 @@ public class ReconciliationJobService {
                 .map(j -> JobResponse.from(j, null, false)).toList();
     }
 
+    private MatchingStrategy resolveStrategy(String requested) {
+        String name = (requested == null || requested.isBlank()) ? ExactMatchStrategy.NAME : requested.trim();
+        try {
+            return MatchingStrategies.of(name);
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException(e.getMessage());
+        }
+    }
+
+    private ExecutionMode resolveMode(String requested) {
+        String name = (requested == null || requested.isBlank()) ? defaultMode : requested;
+        ExecutionMode mode;
+        try {
+            mode = ExecutionMode.valueOf(name.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException("mode 는 IN_MEMORY 또는 CHUNKED 여야 합니다: " + name);
+        }
+        if (mode == ExecutionMode.CHUNKED && !rowLoader.supportsHashPartition()) {
+            throw new BadRequestException("CHUNKED 모드는 CRC32() 를 지원하는 MySQL/MariaDB 에서만 사용할 수 있습니다");
+        }
+        return mode;
+    }
+
     private UploadBatch requireBatch(Long id, UploadType expected) {
         UploadBatch batch = batchRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("업로드 배치를 찾을 수 없습니다: " + id));
@@ -141,5 +198,15 @@ public class ReconciliationJobService {
                     + expected + " 배치가 필요합니다");
         }
         return batch;
+    }
+
+    /** 청크를 돌며 누적하는 합계 */
+    private static final class Totals {
+        long loadNs, compareNs, saveNs;
+        int totalA, totalB, excludedA, excludedB, missingInA, missingInB, duplicate, valueDiff;
+
+        JobSummary toSummary() {
+            return new JobSummary(totalA, totalB, excludedA, excludedB, missingInA, missingInB, duplicate, valueDiff);
+        }
     }
 }
