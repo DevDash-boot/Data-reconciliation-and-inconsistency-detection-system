@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.example.recon.upload.CsvMapperTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-11-10T01:05:52.599Z" hostname="DESKTOP-6CJ2S1B" time="0.01">
+<testsuite name="com.example.recon.upload.CsvMapperTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-11-10T01:34:27.041Z" hostname="DESKTOP-6CJ2S1B" time="0.087">
   <properties/>
-  <testcase name="빈 파일은 거부한다" classname="com.example.recon.upload.CsvMapperTest" time="0.002"/>
-  <testcase name="정상 결제 CSV 를 레코드로 변환한다" classname="com.example.recon.upload.CsvMapperTest" time="0.003"/>
-  <testcase name="잘못된 행은 건너뛰고 오류로 모은다 (전체가 죽지 않는다)" classname="com.example.recon.upload.CsvMapperTest" time="0.001"/>
+  <testcase name="빈 파일은 거부한다" classname="com.example.recon.upload.CsvMapperTest" time="0.05"/>
+  <testcase name="정상 결제 CSV 를 레코드로 변환한다" classname="com.example.recon.upload.CsvMapperTest" time="0.01"/>
+  <testcase name="잘못된 행은 건너뛰고 오류로 모은다 (전체가 죽지 않는다)" classname="com.example.recon.upload.CsvMapperTest" time="0.005"/>
   <testcase name="헤더가 다르면 파일 전체를 거부한다" classname="com.example.recon.upload.CsvMapperTest" time="0.001"/>
-  <testcase name="빈 줄은 건수에 포함하지 않는다" classname="com.example.recon.upload.CsvMapperTest" time="0.0"/>
-  <testcase name="UTF-8 BOM 이 있어도 헤더를 인식한다" classname="com.example.recon.upload.CsvMapperTest" time="0.0"/>
+  <testcase name="빈 줄은 건수에 포함하지 않는다" classname="com.example.recon.upload.CsvMapperTest" time="0.001"/>
+  <testcase name="UTF-8 BOM 이 있어도 헤더를 인식한다" classname="com.example.recon.upload.CsvMapperTest" time="0.001"/>
   <testcase name="주문 CSV 를 레코드로 변환한다" classname="com.example.recon.upload.CsvMapperTest" time="0.001"/>
   <system-out><![CDATA[]]></system-out>
   <system-err><![CDATA[]]></system-err>
