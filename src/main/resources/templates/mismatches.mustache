@@ -1,0 +1,50 @@
+{{> partials/header}}
+<h4 class="mb-3">불일치 목록 <small class="text-muted">총 {{totalElements}}건</small></h4>
+
+<form class="row g-2 mb-3" method="get" action="/mismatches">
+  <div class="col-auto">
+    <input class="form-control" type="number" name="jobId" placeholder="Job ID" value="{{jobId}}">
+  </div>
+  <div class="col-auto">
+    <select class="form-select" name="type">
+      <option value="">유형 전체</option>
+      {{#typeOptions}}<option value="{{value}}" {{#selected}}selected{{/selected}}>{{value}}</option>{{/typeOptions}}
+    </select>
+  </div>
+  <div class="col-auto">
+    <select class="form-select" name="status">
+      <option value="">상태 전체</option>
+      {{#statusOptions}}<option value="{{value}}" {{#selected}}selected{{/selected}}>{{value}}</option>{{/statusOptions}}
+    </select>
+  </div>
+  <div class="col-auto">
+    <input class="form-control" type="text" name="keyword" placeholder="키 앞부분 (예: O-00)" value="{{keyword}}">
+  </div>
+  <div class="col-auto"><button class="btn btn-primary" type="submit">검색</button></div>
+</form>
+
+<table class="table table-sm table-hover align-middle">
+  <thead><tr><th>ID</th><th>Job</th><th>매칭 키</th><th>유형</th><th>상태</th><th>발견 시각</th></tr></thead>
+  <tbody>
+  {{#rows}}
+    <tr>
+      <td><a href="/mismatches/{{id}}">{{id}}</a></td>
+      <td>{{jobId}}</td>
+      <td>{{matchKey}}</td>
+      <td><span class="badge text-bg-secondary">{{type}}</span></td>
+      <td><span class="badge text-bg-light border">{{status}}</span></td>
+      <td>{{createdAt}}</td>
+    </tr>
+  {{/rows}}
+  {{^hasRows}}<tr><td colspan="6" class="text-center text-muted">조건에 맞는 불일치가 없습니다</td></tr>{{/hasRows}}
+  </tbody>
+</table>
+
+<nav class="d-flex justify-content-between align-items-center">
+  <span class="text-muted">{{pageDisplay}} / {{totalPages}} 페이지</span>
+  <div>
+    {{#hasPrev}}<a class="btn btn-outline-secondary btn-sm" href="{{prevUrl}}">이전</a>{{/hasPrev}}
+    {{#hasNext}}<a class="btn btn-outline-secondary btn-sm" href="{{nextUrl}}">다음</a>{{/hasNext}}
+  </div>
+</nav>
+{{> partials/footer}}
