@@ -13,6 +13,7 @@ import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -23,9 +24,14 @@ import java.time.LocalDateTime;
 
 /** 대조 1회 실행 단위. 입력(두 배치), 전략, 결과 요약을 이력으로 남긴다. */
 @Entity
-@Table(name = "reconciliation_job", indexes = {
-        @Index(name = "idx_job_key", columnList = "job_key")
-})
+@Table(name = "reconciliation_job",
+        indexes = {
+                @Index(name = "idx_job_key", columnList = "job_key")
+        },
+        uniqueConstraints = {
+                // 같은 active_key 를 가진 Job 은 하나만 존재할 수 있다 (NULL 은 여러 개 가능)
+                @UniqueConstraint(name = "uq_job_active_key", columnNames = {"active_key"})
+        })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ReconciliationJob {
@@ -49,6 +55,13 @@ public class ReconciliationJob {
     /** "동일 Job" 판별용 키: paymentBatchId:orderBatchId:strategy */
     @Column(name = "job_key", length = 100)
     private String jobKey;
+
+    /**
+     * PENDING / RUNNING / SUCCESS 인 동안만 job_key 와 같은 값을 가진다. FAILED 가 되면 NULL.
+     * UNIQUE 라서 "같은 Job 의 동시 실행" 과 "중복 성공 결과" 를 DB 가 막아 준다. (#16)
+     */
+    @Column(name = "active_key", length = 100)
+    private String activeKey;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -98,6 +111,7 @@ public class ReconciliationJob {
         this.orderBatch = orderBatch;
         this.strategy = strategy;
         this.jobKey = jobKey;
+        this.activeKey = jobKey;
         this.status = JobStatus.PENDING;
     }
 
@@ -122,6 +136,7 @@ public class ReconciliationJob {
 
     public void markFailed(String message) {
         this.status = JobStatus.FAILED;
+        this.activeKey = null;   // 실패한 Job 은 같은 요청으로 다시 실행할 수 있다
         this.finishedAt = LocalDateTime.now();
         this.errorMessage = (message == null) ? "알 수 없는 오류"
                 : (message.length() > 1000 ? message.substring(0, 1000) : message);

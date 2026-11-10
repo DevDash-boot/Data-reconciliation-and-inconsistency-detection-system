@@ -1,6 +1,7 @@
 package com.example.recon.job;
 
 import com.example.recon.common.exception.BadRequestException;
+import com.example.recon.common.exception.ConflictException;
 import com.example.recon.common.exception.JobFailedException;
 import com.example.recon.common.exception.NotFoundException;
 import com.example.recon.matching.ExactMatchStrategy;
@@ -17,6 +18,7 @@ import com.example.recon.upload.UploadBatchRepository;
 import com.example.recon.upload.UploadType;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,11 +31,20 @@ import java.util.Map;
 /**
  * 대조 Job 실행 (동기).
  *
+ * v16: 멱등성 (아래 "멱등성 정책" 참고)
  * v14: 실행 방식 두 가지
  *  - IN_MEMORY : 전체를 읽어 한 번에 대조
  *  - CHUNKED   : 키 해시로 N 개 청크로 나눠, 청크마다 읽기 -> 대조 -> 저장 후 메모리를 비운다
  *
  * 두 방식은 같은 process() 를 쓰므로 결과가 같아야 한다. (같은 키는 항상 같은 청크로 가므로 경계 문제가 없다)
+ * 멱등성 정책 (#16)
+ *  - "동일 Job" = 결제 배치 + 주문 배치 + 전략  (jobKey)
+ *  - 같은 요청이 다시 오면 이미 SUCCESS 인 Job 을 그대로 돌려준다 (reused=true), 새로 계산하지 않는다
+ *  - force=true 면 기존 Job 과 그 불일치를 지우고 다시 계산한다 (교체)
+ *  - 같은 Job 이 PENDING/RUNNING 이면 409 (동시 실행 방지)
+ *  - FAILED 인 Job 은 같은 요청으로 다시 실행할 수 있다
+ *  - 최종 방어선은 DB: reconciliation_job.active_key UNIQUE
+ *
  * 트랜잭션 구조는 v9 와 같다: Job 생성 커밋 -> 대조+저장 한 트랜잭션 -> 실패 시 별도 트랜잭션에서 FAILED.
  */
 @Service
@@ -44,6 +55,7 @@ public class ReconciliationJobService {
     private final ReconciliationJobRepository jobRepository;
     private final RowLoader rowLoader;
     private final MismatchBatchWriter mismatchWriter;
+    private final JobCleanup jobCleanup;
     private final PlatformTransactionManager transactionManager;
     private final int partitions;
     private final String defaultMode;
@@ -52,6 +64,7 @@ public class ReconciliationJobService {
                                     ReconciliationJobRepository jobRepository,
                                     RowLoader rowLoader,
                                     MismatchBatchWriter mismatchWriter,
+                                    JobCleanup jobCleanup,
                                     PlatformTransactionManager transactionManager,
                                     @Value("${recon.chunk.partitions:16}") int partitions,
                                     @Value("${recon.engine.default-mode:IN_MEMORY}") String defaultMode) {
@@ -59,6 +72,7 @@ public class ReconciliationJobService {
         this.jobRepository = jobRepository;
         this.rowLoader = rowLoader;
         this.mismatchWriter = mismatchWriter;
+        this.jobCleanup = jobCleanup;
         this.transactionManager = transactionManager;
         this.partitions = partitions;
         this.defaultMode = defaultMode;
@@ -76,17 +90,40 @@ public class ReconciliationJobService {
         String jobKey = request.paymentBatchId() + ":" + request.orderBatchId() + ":" + strategy.name();
         TransactionTemplate tx = new TransactionTemplate(transactionManager);
 
-        Long jobId = tx.execute(status -> {
-            ReconciliationJob job = jobRepository.save(ReconciliationJob.builder()
-                    .paymentBatch(batchRepository.getReferenceById(request.paymentBatchId()))
-                    .orderBatch(batchRepository.getReferenceById(request.orderBatchId()))
-                    .strategy(strategy.name())
-                    .jobKey(jobKey)
-                    .build());
-            job.markRunning();
-            return job.getId();
-        });
+        // 1) 동일 Job 이 이미 있는지 확인
+        JobResponse existing = tx.execute(status -> jobRepository.findByActiveKey(jobKey)
+                .map(j -> JobResponse.from(j, null, true)).orElse(null));
+        if (existing != null) {
+            if (!"SUCCESS".equals(existing.status())) {
+                throw new ConflictException("동일한 Job(#" + existing.id() + ")이 이미 실행 중입니다 (상태: "
+                        + existing.status() + ")");
+            }
+            if (!request.forceRun()) {
+                log.info("동일한 Job #{} 의 결과를 재사용합니다", existing.id());
+                return existing;
+            }
+            log.info("force=true: 기존 Job #{} 와 불일치를 삭제하고 다시 계산합니다", existing.id());
+            tx.executeWithoutResult(status -> jobCleanup.deleteJob(existing.id()));
+        }
 
+        // 2) Job 생성. active_key UNIQUE 가 동시에 같은 Job 을 만드는 것을 막는다
+        Long jobId;
+        try {
+            jobId = tx.execute(status -> {
+                ReconciliationJob job = jobRepository.saveAndFlush(ReconciliationJob.builder()
+                        .paymentBatch(batchRepository.getReferenceById(request.paymentBatchId()))
+                        .orderBatch(batchRepository.getReferenceById(request.orderBatchId()))
+                        .strategy(strategy.name())
+                        .jobKey(jobKey)
+                        .build());
+                job.markRunning();
+                return job.getId();
+            });
+        } catch (DataIntegrityViolationException e) {
+            throw new ConflictException("동일한 Job 이 동시에 실행 중입니다. 잠시 후 다시 요청하세요");
+        }
+
+        // 3) 실행
         try {
             return tx.execute(status -> execute(jobId, strategy, mode));
         } catch (RuntimeException e) {
