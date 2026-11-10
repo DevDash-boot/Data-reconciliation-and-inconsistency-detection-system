@@ -28,6 +28,10 @@ spring:
 recon:
   jdbc:
     batch-size: 1000     # JDBC batch 한 번에 보내는 행 수 (#13 에서 500/1000/5000 비교)
+  chunk:
+    partitions: 16       # CHUNKED 모드의 청크 수 (#14 에서 4/16/64 비교)
+  engine:
+    default-mode: IN_MEMORY   # IN_MEMORY | CHUNKED
 
 management:
   endpoints:
