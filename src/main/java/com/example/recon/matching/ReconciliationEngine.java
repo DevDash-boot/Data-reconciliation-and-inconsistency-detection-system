@@ -9,19 +9,21 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 대조 엔진 v1 (baseline).
- *
- * 동작
- *  1. A, B 를 각각 key -> Row 맵으로 만든다
- *  2. A 를 돌며 B 에 없으면 MISSING_IN_B, 있으면 값을 비교해 다르면 VALUE_DIFF
- *  3. B 에만 있는 키는 MISSING_IN_A
- *
- * 한계 (의도적)
- *  - 같은 키가 2건 이상이면 마지막 행만 남는다 -> DUPLICATE 를 탐지하지 못한다 (#8)
- *  - 비교 규칙이 코드에 박혀 있다 (#7 에서 Strategy 로 분리)
- *  - 전체 데이터를 메모리에 올린다 (#14 에서 청크 처리)
+ * 대조 엔진 v2.
+ * v1 과 달라진 점: 값 비교 규칙을 MatchingStrategy 로 분리했다. 엔진은 어떤 규칙인지 모른다.
+ * (중복 키 처리는 아직 없다. #8)
  */
 public final class ReconciliationEngine {
+
+    private final MatchingStrategy strategy;
+
+    public ReconciliationEngine() {
+        this(new ExactMatchStrategy());
+    }
+
+    public ReconciliationEngine(MatchingStrategy strategy) {
+        this.strategy = strategy;
+    }
 
     public ReconciliationResult reconcile(List<Row> a, List<Row> b) {
         Map<String, Row> mapA = new HashMap<>();
@@ -35,11 +37,10 @@ public final class ReconciliationEngine {
 
         List<MismatchItem> items = new ArrayList<>();
         for (Map.Entry<String, Row> e : mapA.entrySet()) {
-            Row ra = e.getValue();
             Row rb = mapB.get(e.getKey());
             if (rb == null) {
                 items.add(new MismatchItem(e.getKey(), MismatchType.MISSING_IN_B, ""));
-            } else if (ra.amount() != rb.amount() || !ra.status().equals(rb.status())) {
+            } else if (!strategy.compare(e.getValue(), rb).isEmpty()) {
                 items.add(new MismatchItem(e.getKey(), MismatchType.VALUE_DIFF, ""));
             }
         }
