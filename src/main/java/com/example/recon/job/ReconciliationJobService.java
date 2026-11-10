@@ -10,8 +10,7 @@ import com.example.recon.matching.ReconciliationEngine;
 import com.example.recon.matching.ReconciliationResult;
 import com.example.recon.matching.Row;
 import com.example.recon.matching.ScopeRules;
-import com.example.recon.mismatch.Mismatch;
-import com.example.recon.mismatch.MismatchRepository;
+import com.example.recon.mismatch.MismatchBatchWriter;
 import com.example.recon.mismatch.MismatchType;
 import com.example.recon.source.SourceOrderRepository;
 import com.example.recon.source.SourcePaymentRepository;
@@ -37,7 +36,7 @@ import java.util.Map;
  *  2) 대조 + 결과 저장은 한 트랜잭션     -> 실패하면 불일치가 부분 저장되지 않는다 (롤백)
  *  3) 실패하면 별도 트랜잭션에서 FAILED  -> 롤백과 무관하게 실패 상태가 남는다
  *
- * 이 버전은 JPA saveAll 을 쓰는 baseline 이다. (#12 에서 측정, #13 에서 개선)
+ * v13: 불일치 저장을 JPA saveAll 대신 JDBC batch(MismatchBatchWriter)로 바꿨다.
  */
 @Service
 @RequiredArgsConstructor
@@ -48,7 +47,7 @@ public class ReconciliationJobService {
     private final ReconciliationJobRepository jobRepository;
     private final SourcePaymentRepository paymentRepository;
     private final SourceOrderRepository orderRepository;
-    private final MismatchRepository mismatchRepository;
+    private final MismatchBatchWriter mismatchWriter;
     private final PlatformTransactionManager transactionManager;
 
     public JobResponse run(JobRequest request) {
@@ -106,11 +105,7 @@ public class ReconciliationJobService {
         ReconciliationResult result = new ReconciliationEngine(strategy).reconcile(a.rows(), b.rows());
         long t2 = System.nanoTime();
 
-        List<Mismatch> entities = result.items().stream()
-                .map(it -> Mismatch.builder().job(job).matchKey(it.key()).type(it.type())
-                        .diffDetail(it.detail()).build())
-                .toList();
-        mismatchRepository.saveAll(entities);
+        mismatchWriter.insertAll(jobId, result.items());
         long t3 = System.nanoTime();
 
         job.markSuccess(new JobSummary(a.rows().size(), b.rows().size(), a.excluded(), b.excluded(),
