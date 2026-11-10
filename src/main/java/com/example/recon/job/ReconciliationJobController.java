@@ -19,11 +19,15 @@ public class ReconciliationJobController {
 
     private final ReconciliationJobService jobService;
 
-    /** curl -X POST localhost:8080/api/jobs -H 'Content-Type: application/json'
-     *       -d '{"paymentBatchId":1,"orderBatchId":2,"strategy":"EXACT"}' */
+    /**
+     * 새로 실행하면 201, 이미 있는 결과를 재사용하면 200 (응답의 reused=true).
+     * curl -X POST localhost:8080/api/jobs -H 'Content-Type: application/json'
+     *      -d '{"paymentBatchId":1,"orderBatchId":2,"strategy":"EXACT","force":false}'
+     */
     @PostMapping
     public ResponseEntity<JobResponse> run(@RequestBody JobRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(jobService.run(request));
+        JobResponse response = jobService.run(request);
+        return ResponseEntity.status(response.reused() ? HttpStatus.OK : HttpStatus.CREATED).body(response);
     }
 
     @GetMapping("/{id}")
