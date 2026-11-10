@@ -1,0 +1,16 @@
+{{> partials/header}}
+<a href="/mismatches" class="btn btn-outline-secondary btn-sm mb-3">&larr; 목록</a>
+<h4>불일치 #{{id}}</h4>
+<table class="table table-bordered w-auto">
+  <tr><th>Job</th><td>#{{jobId}}</td></tr>
+  <tr><th>매칭 키</th><td>{{matchKey}}</td></tr>
+  <tr><th>유형</th><td><span class="badge text-bg-secondary">{{type}}</span></td></tr>
+  <tr><th>상태</th><td>{{status}}</td></tr>
+  <tr><th>발견 시각</th><td>{{createdAt}}</td></tr>
+  <tr><th>처리자</th><td>{{resolvedBy}}</td></tr>
+  <tr><th>메모</th><td>{{memo}}</td></tr>
+</table>
+<h6>상세 (JSON)</h6>
+<pre class="bg-light border p-3">{{diffDetail}}</pre>
+<p class="text-muted small">VALUE_DIFF 는 필드별 a(결제)/b(주문) 값, DUPLICATE 는 countA/countB, MISSING 은 키가 있는 쪽(presentIn)을 보여줍니다.</p>
+{{> partials/footer}}
