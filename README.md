@@ -1,174 +1,142 @@
 # Recon — 결제·주문 데이터 대조 및 불일치 탐지 시스템
 
 > 외부 결제 내역(PortOne)과 내부 주문 DB를 대조해 **누락·중복·값 불일치**를 찾아내고, 처리 상태까지 관리하는 백엔드 시스템입니다.
+> 100만 건 규모를 목표로 **정확성을 정답 데이터로 검증**하고, **성능 개선 과정을 수치로 기록**했습니다.
 
-<!-- 프로젝트명, 한 줄 소개는 자유롭게 수정하세요 -->
+## 1. 문제와 해결
 
-## 1. 프로젝트 소개
+결제 시스템(PG사)과 주문 시스템은 따로 움직여서 데이터가 어긋날 수 있습니다. (결제는 됐는데 주문이 없다, 같은 결제가 두 번 기록됐다, 금액이 다르다…)
+수작업으로 비교하면 놓치기 쉽고, 건수가 늘면 불가능해집니다.
 
-### 문제
-결제 시스템과 주문 시스템은 따로 움직이기 때문에 다음과 같은 불일치가 생길 수 있습니다.
-- 결제는 됐는데 주문이 없다 / 주문은 있는데 결제가 없다
-- 같은 결제가 두 번 기록됐다
-- 금액·상태가 서로 다르다
-
-이런 불일치를 사람이 눈으로 찾기는 어렵고, 데이터가 커질수록 불가능해집니다.
-
-### 목표
-1. 두 데이터셋을 **매칭 키 기준으로 자동 대조**한다.
-2. 불일치를 **유형별로 분류**하고 저장한다.
-3. 불일치를 **OPEN → RESOLVED / IGNORED** 로 관리한다.
-4. 100만 건 규모에서도 **측정 가능한 성능**으로 동작한다.
-
-### 범위
-| 하는 것 | 안 하는 것 (v1) |
-|---|---|
-| CSV 업로드 기반 대조 | 실시간 스트리밍 대조 |
-| 정확 일치 기반 매칭 | 퍼지 매칭 |
-| 3가지 불일치 유형 | Excel 등 다양한 포맷 |
-| 관리자 대시보드 | 별도 프론트엔드 프레임워크 |
+Recon 은 두 CSV 를 업로드하면 매칭 키(`merchant_uid = order_no`) 기준으로 자동 대조해 불일치를 유형별로 분류하고,
+`OPEN → RESOLVED / IGNORED` 로 처리 상태를 관리합니다.
 
 ## 2. 주요 기능
 
-- **CSV 업로드 및 파싱**: 결제 내역 / 주문 내역 업로드
-- **대조 엔진**: 매칭 키 기반 비교, `MatchingStrategy` 로 규칙 교체 가능
-- **불일치 분류**: `MISSING_IN_A`, `MISSING_IN_B`, `DUPLICATE`, `VALUE_DIFF`
-- **대조 Job 관리**: 실행 이력, 재실행, 멱등성 보장
-- **주기 대조**: `@Scheduled` 기반 자동 실행
-- **불일치 관리**: 조회/필터, 상태 변경(OPEN / RESOLVED / IGNORED)
-- **대시보드**: 유형별·기간별 불일치 현황 (Chart.js)
-- **권한**: ADMIN / USER 구분
-
-## 3. 불일치 유형
-
-| 유형 | 의미 | 예시 |
-|---|---|---|
-| `MISSING_IN_A` | A(결제)에는 없고 B(주문)에만 있음 | 주문은 있는데 결제 기록 없음 |
-| `MISSING_IN_B` | B(주문)에는 없고 A(결제)에만 있음 | 결제됐는데 주문 없음 |
-| `DUPLICATE` | 같은 키가 한쪽에 2건 이상 | 동일 결제 이중 기록 |
-| `VALUE_DIFF` | 키는 같지만 값이 다름 | 금액 불일치 |
-
-## 4. 기술 스택
-
-| 구분 | 기술 |
+| 기능 | 설명 |
 |---|---|
-| Language | Java 17 |
-| Framework | Spring Boot, Spring Data JPA, Spring Security |
-| Database | MySQL 8 |
-| Infra | Docker, Docker Compose |
-| View | Mustache, Bootstrap, Chart.js |
-| Test | JUnit 5, Mockito, AssertJ |
+| CSV 업로드 | 결제/주문 CSV 파싱, 행 단위 검증(오류 행은 건너뛰고 리포트), BOM 처리 |
+| 대조 엔진 | 매칭 키 기반, 범위 규칙(결제 ready/failed, 주문 PENDING 제외), `MatchingStrategy` 로 규칙 교체 |
+| 불일치 분류 | `MISSING_IN_A`, `MISSING_IN_B`, `DUPLICATE`, `VALUE_DIFF` (키 하나당 1건, 우선순위 규칙) |
+| Job 관리 | 실행 이력, **멱등성**(같은 요청 재사용 / force 재계산 / 동시 실행 방지), 서버 재시작 복구 |
+| 대용량 처리 | JDBC batch 적재, 해시 파티션 **청크 처리**(메모리 1/N), 인덱스 분석 |
+| 주기 대조 | `@Scheduled` (기본 꺼짐) |
+| 조회/관리 | 필터 + 페이징 API, 상태 변경(전이 규칙, 일괄 변경, 이력), 화면 |
+| 대시보드 | 유형별/상태별/일별 추이 (Chart.js) |
+| 권한 | ADMIN / USER, 화면은 세션 로그인, API 는 HTTP Basic |
 
-<!-- 실제 사용 버전에 맞게 수정하세요 -->
+### 불일치 유형
+| 유형 | 의미 |
+|---|---|
+| `MISSING_IN_A` | 주문은 있는데 결제 기록이 없다 |
+| `MISSING_IN_B` | 결제됐는데 주문이 없다 |
+| `DUPLICATE` | 한쪽에 같은 키가 2건 이상 |
+| `VALUE_DIFF` | 키는 같지만 금액/상태가 다르다 (필드별 a/b 값을 JSON 으로 저장) |
 
-## 5. 아키텍처
+## 3. 기술 스택
+
+Java 21 · Spring Boot 4.1 · Spring Data JPA + JDBC · Spring Security · MySQL 8.4 · Docker Compose ·
+Mustache + Bootstrap + Chart.js · JUnit 5 + AssertJ (+ Mockito)
+
+## 4. 아키텍처
 
 ```
-[CSV 업로드] → [Parser] → [원천 데이터 테이블 A/B]
-                                   ↓
-                          [Reconciliation Job]
-                                   ↓
-                     [MatchingStrategy 기반 대조 엔진]
-                                   ↓
-                         [Mismatch 결과 테이블]
-                                   ↓
-                    [조회 API / 상태 관리 / 대시보드]
+CSV ─▶ [upload] 파싱·검증 ─▶ upload_batch + source_payment / source_order   (JDBC batch)
+                                             │
+                    POST /api/jobs ─▶ [job] ReconciliationJobService
+                                             │  범위 규칙 → ReconciliationEngine(MatchingStrategy)
+                                             │  IN_MEMORY  : 전체 한 번에
+                                             │  CHUNKED    : CRC32 해시로 N 개 청크
+                                             ▼
+                                       mismatch (+ reconciliation_job 요약)
+                                             │
+                  [mismatch] 조회·상태 변경(이력) ─▶ [dashboard] 집계 ─▶ 화면 / API
 ```
 
-패키지 구조 (예정)
-```
-com.example.recon
-├─ upload        # 파일 업로드, 파싱
-├─ source        # 원천 데이터 엔티티/저장소
-├─ job           # 대조 Job 실행/이력
-├─ matching      # MatchingStrategy, 대조 엔진
-├─ mismatch      # 불일치 결과, 상태 관리
-├─ dashboard     # 통계
-├─ auth          # 인증/인가
-└─ common        # 공통 예외, 유틸
-```
+자세한 설계: [Wiki](../../wiki) — 도메인 정의, ERD, 알고리즘, 성능 기록, ADR
 
-상세 설계: [Wiki - 아키텍처](../../wiki)
+## 5. 실행 방법
 
-## 6. 성능 측정 결과
+### 준비
+- JDK 21, Docker
 
-> 측정 환경: (CPU / RAM / MySQL 버전 기재)
-
-| 데이터 규모 | 방식 | 소요 시간 | 비고 |
-|---|---|---|---|
-| 10만 건 | baseline (JPA saveAll) | - | |
-| 10만 건 | JDBC batch | - | |
-| 100만 건 | 청크 + 인덱스 적용 | - | |
-
-상세 기록: [Wiki - 성능 측정 기록](../../wiki)
-
-## 7. 실행 방법
-
-### 사전 준비
-- JDK 17+
-- Docker / Docker Compose
-
-### 실행
 ```bash
-# 1. 저장소 클론
-git clone https://github.com/{username}/{repo}.git
-cd {repo}
-
-# 2. 환경변수 설정
-cp .env.example .env
-
-# 3. DB 실행
-docker compose up -d
-
-# 4. 애플리케이션 실행
-./gradlew bootRun
+git clone https://github.com/{username}/{repo}.git && cd {repo}
+cp .env.example .env          # DB 비밀번호와 ADMIN_USERNAME / ADMIN_PASSWORD 를 바꾸세요
+docker compose up -d          # MySQL
+./gradlew bootRun             # http://localhost:8080  (ADMIN 계정은 .env 의 값으로 자동 생성)
 ```
 
-### 샘플 데이터 생성
+### 샘플 데이터로 써보기
 ```bash
-# 예: 10만 건, 누락 2%, 중복 1%, 값 불일치 3%
-./gradlew bootRun --args="--generator.size=100000 --generator.missing=0.02 --generator.duplicate=0.01 --generator.diff=0.03"
+./gradlew generateSample -Psize=10000 -PoutDir=data/10k    # 정답(expected)이 함께 만들어진다
+
+curl -u admin:비밀번호 -F type=PAYMENT -F file=@data/10k/payments.csv localhost:8080/api/uploads
+curl -u admin:비밀번호 -F type=ORDER   -F file=@data/10k/orders.csv   localhost:8080/api/uploads
+curl -u admin:비밀번호 -X POST localhost:8080/api/jobs -H 'Content-Type: application/json' \
+     -d '{"paymentBatchId":1,"orderBatchId":2,"strategy":"EXACT"}'
 ```
+결과는 `data/10k/expected.properties` 와 같아야 합니다. 화면: `/dashboard`, `/mismatches`
 
 ### 테스트
 ```bash
-./gradlew test
+./gradlew test                 # 단위 + 통합 (H2 사용, Docker 불필요)
 ```
+커버리지: `build/reports/jacoco/test/html/index.html`
 
-## 8. API 개요
+## 6. API
 
-| Method | URL | 설명 |
-|---|---|---|
-| POST | `/api/uploads` | CSV 업로드 |
-| POST | `/api/jobs` | 대조 Job 실행 |
-| GET | `/api/jobs/{id}` | Job 상태/요약 조회 |
-| GET | `/api/mismatches` | 불일치 목록 (유형/상태 필터) |
-| PATCH | `/api/mismatches/{id}/status` | 상태 변경 |
-| GET | `/api/dashboard/summary` | 통계 |
+| Method | URL | 권한 | 설명 |
+|---|---|---|---|
+| POST | `/api/uploads` | ADMIN | CSV 업로드 (`type=PAYMENT\|ORDER`, `file`) |
+| GET | `/api/uploads` | USER | 업로드 이력 |
+| POST | `/api/jobs` | ADMIN | 대조 실행 (`strategy`, `mode`, `force`) — 새로 실행 201, 재사용 200 |
+| GET | `/api/jobs`, `/api/jobs/{id}` | USER | Job 조회 |
+| GET | `/api/mismatches` | USER | 불일치 목록 (`jobId,type,status,keyword,page,size`) |
+| GET | `/api/mismatches/{id}`, `/{id}/history` | USER | 상세, 상태 변경 이력 |
+| PATCH | `/api/mismatches/{id}/status` | ADMIN | 상태 변경 |
+| PATCH | `/api/mismatches/status` | ADMIN | 일괄 상태 변경 (전부 또는 전무) |
+| GET | `/api/dashboard/summary` | USER | 통계 |
 
-<!-- 구현하면서 실제 경로로 수정하세요 -->
+## 7. 성능
 
-## 9. 프로젝트 관리
+> 측정 환경: (CPU / RAM / OS / JDK / MySQL 버전 — PerfRunner 출력값)
+> 측정 방법: `./gradlew bootRun -Pxmx=1g --args="--spring.profiles.active=perf --perf.dataset=data/100k --perf.label=..."`
+> 3회 평균, 워밍업 1회 제외, 모든 실행에서 expected 와 100% 일치 확인
 
-- **Issues**: 작업 단위 (완료 조건 포함)
-- **Projects**: 칸반 보드로 진행 현황 관리
-- **Wiki**: 설계, 의사결정(ADR), 성능 기록, 트러블슈팅
-- **브랜치 전략**: `main` / `feature/{이슈번호}-{설명}`
-- **커밋 컨벤션**: `feat:` `fix:` `test:` `docs:` `refactor:` `perf:` `chore:`
+| 데이터 규모 | 방식 | 업로드 적재 | 대조 | 결과 저장 | 합계 | 비고 |
+|---|---|---|---|---|---|---|
+| 10만 | baseline (JPA saveAll) | - | - | - | - | |
+| 10만 | JDBC batch | - | - | - | - | |
+| 100만 | IN_MEMORY | - | - | - | - | |
+| 100만 | CHUNKED (16) | - | - | - | - | 힙 -Xmx 제한 |
 
-## 10. 로드맵
+상세 기록과 분석: [Wiki - 성능 측정 기록](../../wiki)
 
-| 마일스톤 | 기간 | 내용 |
-|---|---|---|
-| M1 | 1~2주 | 기반 구축 (환경, 도메인 정의, ERD, 샘플 데이터, 업로드) |
-| M2 | 3~4주 | 핵심 대조 로직 (엔진, Strategy, 유형 분류, Job) |
-| M3 | 5~6주 | 성능·안정성 (batch, 청크, 인덱스, 멱등성, 스케줄) |
-| M4 | 7~8주 | 운영 기능·마무리 (관리 화면, 대시보드, 권한, 문서) |
+## 8. 설계 결정 (요약)
+
+| 결정 | 이유 |
+|---|---|
+| 상태값을 원본 그대로 저장, 대조 시점에 매핑 | 매핑 규칙이 바뀌어도 재업로드가 필요 없다 |
+| 키 하나당 불일치 1건 + 우선순위 | 같은 문제가 여러 건으로 부풀지 않게 |
+| `MatchingStrategy` 로 비교 규칙 분리 | 엔진 수정 없이 규칙 추가 |
+| 적재/저장은 JDBC batch | IDENTITY PK 에서 JPA `saveAll` 은 행마다 INSERT |
+| 청크는 CRC32 해시 파티션 | 같은 키는 항상 같은 청크 → 경계에서 누락/중복이 없다 |
+| 멱등성은 DB UNIQUE(`active_key`) 로 최종 방어 | 서버가 여러 대여도, 동시 요청이어도 안전 |
+| CSV 파서 직접 구현 | 이 프로젝트에 필요한 범위가 작고 테스트로 검증 가능 |
+
+## 9. 한계와 다음 단계
+
+- 퍼지(유사) 매칭, Excel 입력, 부분 취소·분할 결제 미지원
+- 자정 전후 시차 보정 없음 (날짜 비교를 하지 않음)
+- Job 은 동기 실행 (요청 스레드에서 끝날 때까지 대기) → 비동기 + 진행률
+- 청크 쿼리가 청크마다 batch 범위를 다시 훑음 → 키 해시 컬럼 저장 후 범위 조회로 개선 가능
+- 테스트 DB 는 H2 → MySQL 전용 경로(CHUNKED)는 Testcontainers 로 검증 필요
+
+## 10. 프로젝트 관리
+
+Issues(작업 단위) · Projects(진행 보드) · Wiki(설계/ADR/성능 기록) 로 운영했습니다. 브랜치 `feature/{이슈번호}-{설명}`, 커밋 `feat: / fix: / test: / docs: / perf: / chore:`
 
 ## 11. 회고
 
-> 프로젝트 종료 후 작성: 가장 어려웠던 문제, 선택한 해결 방법, 배운 점
-
-## 12. License
-
-MIT (또는 원하는 라이선스)
+(프로젝트 종료 후 작성: 가장 어려웠던 문제 3가지, 선택과 이유, 아쉬운 점)
