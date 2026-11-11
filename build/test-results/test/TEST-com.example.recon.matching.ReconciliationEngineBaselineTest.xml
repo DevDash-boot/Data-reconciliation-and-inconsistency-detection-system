@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.example.recon.matching.ReconciliationEngineBaselineTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-11-10T01:54:22.085Z" hostname="DESKTOP-6CJ2S1B" time="0.07">
-  <properties/>
-  <testcase name="키는 같고 금액이 다르면 VALUE_DIFF" classname="com.example.recon.matching.ReconciliationEngineBaselineTest" time="0.048"/>
-  <testcase name="양쪽이 같으면 불일치가 없다" classname="com.example.recon.matching.ReconciliationEngineBaselineTest" time="0.009"/>
-  <testcase name="A 에만 있으면 MISSING_IN_B, B 에만 있으면 MISSING_IN_A" classname="com.example.recon.matching.ReconciliationEngineBaselineTest" time="0.003"/>
-  <system-out><![CDATA[]]></system-out>
-  <system-err><![CDATA[]]></system-err>
-</testsuite>
