@@ -51,3 +51,8 @@ AGENTS.md
 .omc/
 
 data/
+
+.gradle/
+build/
+job*.json
+st*.json
