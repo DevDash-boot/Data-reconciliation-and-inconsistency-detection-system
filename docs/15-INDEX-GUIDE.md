@@ -43,4 +43,4 @@
 ## 주의
 - `ddl-auto: update` 는 **이미 있는 인덱스를 바꾸지 않아요.** 인덱스를 지우거나 바꿀 때는 SQL 로 직접 하세요.
 - EXPLAIN 의 rows 는 추정치예요. 시간은 EXPLAIN ANALYZE 로 실제 실행해서 확인하세요.
-- MySQL 8.0.18 미만이면 EXPLAIN ANALYZE 가 없어요. 이 프로젝트는 8.4 를 써서 괜찮아요.
+- MySQL 8.0.18 미만이면 EXPLAIN ANALYZE 가 없어요. 이 프로젝트는 8.0 (8.0.18 이상) 을 써서 괜찮아요.

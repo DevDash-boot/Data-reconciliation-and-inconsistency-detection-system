@@ -53,6 +53,6 @@ com.example.recon
 3. 실패 시 **별도 트랜잭션**에서 FAILED 기록
 
 ## 환경 구성
-- 로컬: Docker Compose (MySQL 8.4), 설정은 `.env` → `application.yml`
-- 테스트: H2 (MySQL 모드), `application-test.yml`
+- 로컬: Docker Compose (MySQL 8.0), 설정은 `.env` → `application.yml`
+- 테스트: H2 (MySQL 모드), `application-test.yaml`
 - 성능 측정: `perf` 프로파일 + PerfRunner

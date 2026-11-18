@@ -35,7 +35,7 @@ Recon 은 두 CSV 를 업로드하면 매칭 키(`merchant_uid = order_no`) 기�
 
 ## 3. 기술 스택
 
-Java 21 · Spring Boot 4.1 · Spring Data JPA + JDBC · Spring Security · MySQL 8.4 · Docker Compose ·
+Java 21 · Spring Boot 4.1 · Spring Data JPA + JDBC · Spring Security · MySQL 8.0 · Docker Compose ·
 Mustache + Bootstrap + Chart.js · JUnit 5 + AssertJ (+ Mockito)
 
 ## 4. 아키텍처
@@ -92,7 +92,7 @@ curl -u admin:비밀번호 -X POST localhost:8080/api/jobs -H 'Content-Type: app
 | GET | `/api/uploads` | USER | 업로드 이력 |
 | POST | `/api/jobs` | ADMIN | 대조 실행 (`strategy`, `mode`, `force`) — 새로 실행 201, 재사용 200 |
 | GET | `/api/jobs`, `/api/jobs/{id}` | USER | Job 조회 |
-| GET | `/api/mismatches` | USER | 불일치 목록 (`jobId,type,status,keyword,page,size`) |
+| GET | `/api/mismatches` | USER | 불일치 목록 (`jobId,type,status,keyword,from,to,page,size` — from/to 는 발견일 `yyyy-MM-dd`) |
 | GET | `/api/mismatches/{id}`, `/{id}/history` | USER | 상세, 상태 변경 이력 |
 | PATCH | `/api/mismatches/{id}/status` | ADMIN | 상태 변경 |
 | PATCH | `/api/mismatches/status` | ADMIN | 일괄 상태 변경 (전부 또는 전무) |
