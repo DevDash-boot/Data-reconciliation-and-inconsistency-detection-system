@@ -124,4 +124,17 @@ class ReconciliationEngineEdgeCaseTest {
         assertThat(r.count(MismatchType.VALUE_DIFF)).isEqualTo(100);
         assertThat(r.items()).hasSize(100);
     }
+
+    @Test
+    @DisplayName("상태가 null 이어도 예외 없이 비교한다 (한쪽만 null 이면 VALUE_DIFF, 둘 다 null 이면 일치)")
+    void nullStatus() {
+        ReconciliationResult oneSide = engine.reconcile(
+                List.of(row("O-1", 1, null)), List.of(row("O-1", 1, "PAID")));
+        ReconciliationResult bothNull = engine.reconcile(
+                List.of(row("O-1", 1, null)), List.of(row("O-1", 1, null)));
+
+        assertThat(oneSide.count(MismatchType.VALUE_DIFF)).isEqualTo(1);
+        assertThat(oneSide.items().get(0).detail()).contains("\"status\"");
+        assertThat(bothNull.items()).isEmpty();
+    }
 }

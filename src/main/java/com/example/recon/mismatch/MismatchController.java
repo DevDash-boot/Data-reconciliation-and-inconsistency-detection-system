@@ -21,18 +21,22 @@ public class MismatchController {
     private final MismatchQueryService queryService;
     private final MismatchStatusService statusService;
 
-    /** GET /api/mismatches?jobId=1&type=VALUE_DIFF&status=OPEN&keyword=O-00&page=0&size=20 */
+    /** GET /api/mismatches?jobId=1&type=VALUE_DIFF&status=OPEN&keyword=O-00&from=2026-11-01&to=2026-11-30&page=0&size=20 */
     @GetMapping
     public PageResult<MismatchResponse> search(@RequestParam(required = false) Long jobId,
                                                @RequestParam(required = false) String type,
                                                @RequestParam(required = false) String status,
                                                @RequestParam(required = false) String keyword,
+                                               @RequestParam(required = false) String from,
+                                               @RequestParam(required = false) String to,
                                                @RequestParam(defaultValue = "0") int page,
                                                @RequestParam(defaultValue = "20") int size) {
         MismatchSearchCriteria criteria = new MismatchSearchCriteria(jobId,
                 MismatchQueryService.parseEnum(MismatchType.class, type),
                 MismatchQueryService.parseEnum(MismatchStatus.class, status),
-                keyword);
+                keyword,
+                MismatchQueryService.parseDate("from", from),
+                MismatchQueryService.parseDate("to", to));
         return queryService.search(criteria, page, size);
     }
 

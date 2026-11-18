@@ -32,7 +32,11 @@ public final class DiffDetailJson {
         return "{\"presentIn\":\"" + escape(presentIn) + "\"}";
     }
 
+    /** null 은 빈 문자열로 취급한다. */
     static String escape(String s) {
+        if (s == null) {
+            return "";
+        }
         StringBuilder sb = new StringBuilder(s.length() + 8);
         for (int i = 0; i < s.length(); i++) {
             char c = s.charAt(i);
