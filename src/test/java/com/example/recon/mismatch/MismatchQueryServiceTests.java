@@ -18,6 +18,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.time.LocalDate;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -116,5 +118,34 @@ class MismatchQueryServiceTests {
         assertThatThrownBy(() -> queryService.get(999999L)).isInstanceOf(NotFoundException.class);
         assertThat(MismatchQueryService.parseEnum(MismatchType.class, "")).isNull();
         assertThat(MismatchQueryService.parseEnum(MismatchType.class, "duplicate")).isEqualTo(MismatchType.DUPLICATE);
+    }
+
+    @Test
+    @DisplayName("기간 필터: 오늘이 포함되면 전부, 내일부터/어제까지면 0건")
+    void filterByDateRange() {
+        LocalDate today = LocalDate.now();
+
+        assertThat(queryService.search(new MismatchSearchCriteria(jobId, null, null, null, today, today), 0, 20)
+                .totalElements()).isEqualTo(SampleUploads.TOTAL_MISMATCHES);
+        assertThat(queryService.search(new MismatchSearchCriteria(jobId, null, null, null, today.minusDays(7), null), 0, 20)
+                .totalElements()).isEqualTo(SampleUploads.TOTAL_MISMATCHES);
+        assertThat(queryService.search(new MismatchSearchCriteria(jobId, null, null, null, null, today), 0, 20)
+                .totalElements()).isEqualTo(SampleUploads.TOTAL_MISMATCHES);
+        assertThat(queryService.search(new MismatchSearchCriteria(jobId, null, null, null, today.plusDays(1), null), 0, 20)
+                .totalElements()).isZero();
+        assertThat(queryService.search(new MismatchSearchCriteria(jobId, null, null, null, null, today.minusDays(1)), 0, 20)
+                .totalElements()).isZero();
+    }
+
+    @Test
+    @DisplayName("기간 필터: from 이 to 보다 늦거나 날짜 형식이 틀리면 400")
+    void invalidDateRange() {
+        LocalDate today = LocalDate.now();
+        MismatchSearchCriteria reversed = new MismatchSearchCriteria(null, null, null, null, today, today.minusDays(1));
+
+        assertThatThrownBy(() -> queryService.search(reversed, 0, 20)).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> MismatchQueryService.parseDate("from", "2026/11/01")).isInstanceOf(BadRequestException.class);
+        assertThat(MismatchQueryService.parseDate("from", "")).isNull();
+        assertThat(MismatchQueryService.parseDate("from", "2026-11-01")).isEqualTo(LocalDate.of(2026, 11, 1));
     }
 }

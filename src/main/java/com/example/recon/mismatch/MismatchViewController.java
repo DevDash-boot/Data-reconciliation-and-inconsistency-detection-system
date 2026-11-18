@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -30,13 +31,17 @@ public class MismatchViewController {
                        @RequestParam(required = false) String type,
                        @RequestParam(required = false) String status,
                        @RequestParam(required = false) String keyword,
+                       @RequestParam(required = false) String from,
+                       @RequestParam(required = false) String to,
                        @RequestParam(defaultValue = "0") int page,
                        @RequestParam(defaultValue = "20") int size,
                        Model model) {
         MismatchType typeFilter = MismatchQueryService.parseEnum(MismatchType.class, type);
         MismatchStatus statusFilter = MismatchQueryService.parseEnum(MismatchStatus.class, status);
+        LocalDate fromDate = MismatchQueryService.parseDate("from", from);
+        LocalDate toDate = MismatchQueryService.parseDate("to", to);
         PageResult<MismatchResponse> result = queryService.search(
-                new MismatchSearchCriteria(jobId, typeFilter, statusFilter, keyword), page, size);
+                new MismatchSearchCriteria(jobId, typeFilter, statusFilter, keyword, fromDate, toDate), page, size);
 
         List<Map<String, Object>> rows = new ArrayList<>();
         for (MismatchResponse m : result.content()) {
@@ -54,12 +59,16 @@ public class MismatchViewController {
                 + (jobId != null ? "&jobId=" + jobId : "")
                 + (typeFilter != null ? "&type=" + typeFilter.name() : "")
                 + (statusFilter != null ? "&status=" + statusFilter.name() : "")
-                + (keyword != null && !keyword.isBlank() ? "&keyword=" + URLEncoder.encode(keyword, StandardCharsets.UTF_8) : "");
+                + (keyword != null && !keyword.isBlank() ? "&keyword=" + URLEncoder.encode(keyword, StandardCharsets.UTF_8) : "")
+                + (fromDate != null ? "&from=" + fromDate : "")
+                + (toDate != null ? "&to=" + toDate : "");
 
         model.addAttribute("rows", rows);
         model.addAttribute("hasRows", !rows.isEmpty());
         model.addAttribute("jobId", jobId == null ? "" : jobId);   // Mustache 는 null 값을 싫어하므로 빈 문자열
         model.addAttribute("keyword", keyword == null ? "" : keyword);
+        model.addAttribute("from", fromDate == null ? "" : fromDate.toString());
+        model.addAttribute("to", toDate == null ? "" : toDate.toString());
         model.addAttribute("typeOptions", options(MismatchType.values(), typeFilter));
         model.addAttribute("statusOptions", options(MismatchStatus.values(), statusFilter));
         model.addAttribute("totalElements", result.totalElements());

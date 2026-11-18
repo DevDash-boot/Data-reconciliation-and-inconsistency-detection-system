@@ -8,12 +8,14 @@ import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * 조건이 선택적인 검색을 Criteria 로 만든다.
  * keyword 는 "앞부분 일치"(LIKE 'abc%') 라서 match_key 인덱스를 쓸 수 있다.
+ * from / to 는 created_at 범위 조건이다. (to 는 그날을 포함하므로 다음 날 0시 미만으로 변환)
  * 정렬은 id 내림차순(최신순). 목록 쿼리는 job 을 함께 읽어(fetch) 화면에서 N+1 이 생기지 않게 한다.
  */
 public class MismatchQueryRepositoryImpl implements MismatchQueryRepository {
@@ -55,6 +57,12 @@ public class MismatchQueryRepositoryImpl implements MismatchQueryRepository {
         }
         if (c.keyword() != null && !c.keyword().isBlank()) {
             list.add(cb.like(root.<String>get("matchKey"), escapeLike(c.keyword().trim()) + "%", '\\'));
+        }
+        if (c.from() != null) {
+            list.add(cb.greaterThanOrEqualTo(root.<LocalDateTime>get("createdAt"), c.from().atStartOfDay()));
+        }
+        if (c.to() != null) {
+            list.add(cb.lessThan(root.<LocalDateTime>get("createdAt"), c.to().plusDays(1).atStartOfDay()));
         }
         return list.toArray(new Predicate[0]);
     }
