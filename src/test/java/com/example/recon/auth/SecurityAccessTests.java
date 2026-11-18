@@ -18,7 +18,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrlPattern;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -49,7 +49,7 @@ class SecurityAccessTests {
     @DisplayName("비로그인: 화면은 로그인 페이지로 이동")
     void anonymousPageRedirectsToLogin() throws Exception {
         mvc.perform(get("/dashboard")).andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrlPattern("**/login"));
+            .andExpect(result -> assertThat(result.getResponse().getRedirectedUrl()).endsWith("/login"));
         mvc.perform(get("/mismatches")).andExpect(status().is3xxRedirection());
     }
 
