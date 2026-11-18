@@ -2,8 +2,9 @@ package com.example.recon.matching;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
-/** 금액과 상태가 모두 정확히 같아야 일치. */
+/** 금액과 상태가 모두 정확히 같아야 일치. 상태가 null 이어도 예외 없이 비교한다. */
 public final class ExactMatchStrategy implements MatchingStrategy {
 
     public static final String NAME = "EXACT";
@@ -19,7 +20,7 @@ public final class ExactMatchStrategy implements MatchingStrategy {
         if (a.amount() != b.amount()) {
             diffs.add(new FieldDiff("amount", String.valueOf(a.amount()), String.valueOf(b.amount())));
         }
-        if (!a.status().equals(b.status())) {
+        if (!Objects.equals(a.status(), b.status())) {
             diffs.add(new FieldDiff("status", a.status(), b.status()));
         }
         return diffs;
