@@ -50,8 +50,6 @@ AGENTS.md
 .mcp.json
 .omc/
 
-data/
-
 .gradle/
 build/
 job*.json
