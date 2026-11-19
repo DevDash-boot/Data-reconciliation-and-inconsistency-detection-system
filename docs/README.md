@@ -111,8 +111,8 @@ com.example.recon
 ### 실행
 ```bash
 # 1. 저장소 클론
-git clone https://github.com/{username}/{repo}.git
-cd {repo}
+git clone https://github.com/DevDash-boot/Data-reconciliation-and-inconsistency-detection-system.git
+cd Data-reconciliation-and-inconsistency-detection-system
 
 # 2. 환경변수 설정
 cp .env.example .env

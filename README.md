@@ -61,7 +61,7 @@ CSV ─▶ [upload] 파싱·검증 ─▶ upload_batch + source_payment / source
 - JDK 21, Docker
 
 ```bash
-git clone https://github.com/{username}/{repo}.git && cd {repo}
+git clone https://github.com/DevDash-boot/Data-reconciliation-and-inconsistency-detection-system.git && cd Data-reconciliation-and-inconsistency-detection-system
 cp .env.example .env          # DB 비밀번호와 ADMIN_USERNAME / ADMIN_PASSWORD 를 바꾸세요
 docker compose up -d          # MySQL
 ./gradlew bootRun             # http://localhost:8080  (ADMIN 계정은 .env 의 값으로 자동 생성)
