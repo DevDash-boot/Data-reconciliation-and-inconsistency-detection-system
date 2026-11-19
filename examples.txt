@@ -1,0 +1,12 @@
+﻿--- MISSING_IN_A
+{"content":[{"id":1599,"jobId":2,"matchKey":"O-0009977","type":"MISSING_IN_A","status":"OPEN","diffDetail":"{\"presentIn\":\"B\"}","resolvedBy":null,"resolvedAt":null,"memo":null,"createdAt":"2026-11-19T12:21:46.165562"}],"page":0,"size":1,"totalElements":200,"totalPages":200}
+
+--- MISSING_IN_B
+{"content":[{"id":1595,"jobId":2,"matchKey":"O-0009930","type":"MISSING_IN_B","status":"OPEN","diffDetail":"{\"presentIn\":\"A\"}","resolvedBy":null,"resolvedAt":null,"memo":null,"createdAt":"2026-11-19T12:21:46.165562"}],"page":0,"size":1,"totalElements":200,"totalPages":200}
+
+--- DUPLICATE
+{"content":[{"id":1600,"jobId":2,"matchKey":"O-0009982","type":"DUPLICATE","status":"OPEN","diffDetail":"{\"countA\":2,\"countB\":1}","resolvedBy":null,"resolvedAt":null,"memo":null,"createdAt":"2026-11-19T12:21:46.165562"}],"page":0,"size":1,"totalElements":100,"totalPages":100}
+
+--- VALUE_DIFF
+{"content":[{"id":1597,"jobId":2,"matchKey":"O-0009955","type":"VALUE_DIFF","status":"OPEN","diffDetail":"{\"status\":{\"a\":\"PAID\",\"b\":\"CANCELED\"}}","resolvedBy":null,"resolvedAt":null,"memo":null,"createdAt":"2026-11-19T12:21:46.165562"}],"page":0,"size":1,"totalElements":300,"totalPages":300}
+
