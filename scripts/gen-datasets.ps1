@@ -5,6 +5,7 @@ $seed = 42
 function Gen($name, $size) {
     Write-Host "== $name ($size) =="
     & .\gradlew.bat --quiet generateSample "-Psize=$size" "-Pseed=$seed" "-PoutDir=data/$name"
+    if ($LASTEXITCODE -ne 0) { throw "데이터셋 생성 실패: $name" }
 }
 Gen "10k" 10000
 Gen "100k" 100000
