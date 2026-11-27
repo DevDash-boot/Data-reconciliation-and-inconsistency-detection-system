@@ -53,4 +53,22 @@ class ScopeRulesTest {
         assertThat(ScopeRules.inScopeA("PAID")).isFalse();
         assertThat(ScopeRules.inScopeB("paid")).isFalse();
     }
+
+    @Test
+    @DisplayName("상태가 null 이면 예외 없이 범위 밖으로 제외한다")
+    void nullStatusIsExcluded() {
+        // given
+        List<Row> rawA = List.of(new Row("O-1", 1, null), new Row("O-2", 1, "paid"));
+        List<Row> rawB = List.of(new Row("O-1", 1, null), new Row("O-2", 1, "PAID"));
+
+        // when
+        ScopeRules.Scoped a = ScopeRules.scopeA(rawA);
+        ScopeRules.Scoped b = ScopeRules.scopeB(rawB);
+
+        // then
+        assertThat(a.rows()).hasSize(1);
+        assertThat(a.excluded()).isEqualTo(1);
+        assertThat(b.rows()).hasSize(1);
+        assertThat(b.excluded()).isEqualTo(1);
+    }
 }
