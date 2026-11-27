@@ -77,6 +77,11 @@ curl -u admin:비밀번호 -X POST localhost:8080/api/jobs -H 'Content-Type: app
      -d '{"paymentBatchId":1,"orderBatchId":2,"strategy":"EXACT"}'
 ```
 결과는 `data/10k/expected.properties` 와 같아야 합니다. 화면: `/dashboard`, `/mismatches`
+성능 측정용 표준 데이터셋(1만 / 10만 / 100만 건)은 명령어 하나로 만듭니다. 시드가 고정이라 언제 다시 만들어도 같은 데이터가 나오고, `data/` 는 Git 에 올리지 않습니다. 자세한 내용은 [docs/DATASETS.md](docs/DATASETS.md).
+```bash
+powershell -ExecutionPolicy Bypass -File scripts\gen-datasets.ps1   # Windows PowerShell
+bash scripts/gen-datasets.sh                                        # macOS / Linux / Git Bash
+```
 
 ### 테스트
 ```bash
