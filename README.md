@@ -105,15 +105,14 @@ bash scripts/gen-datasets.sh                                        # macOS / Li
 
 ## 7. 성능
 
-> 측정 환경: (CPU / RAM / OS / JDK / MySQL 버전 — PerfRunner 출력값)
+> 측정 환경: Windows 11, CPU 20코어, RAM 16GB, JDK 21.0.12.1, MySQL 8.0.24, -Xmx1g (100만 baseline 성공 측정만 -Xmx4g)
 > 측정 방법: `./gradlew bootRun -Pxmx=1g --args="--spring.profiles.active=perf --perf.dataset=data/100k --perf.label=..."`
 > 3회 평균, 워밍업 1회 제외, 모든 실행에서 expected 와 100% 일치 확인
 
 | 데이터 규모 | 방식 | 업로드 적재 | 대조 | 결과 저장 | 합계 | 비고 |
 |---|---|---|---|---|---|---|
-| 10만 | baseline (JPA saveAll) | - | - | - | - | |
-| 10만 | JDBC batch | - | - | - | - | |
-| 100만 | IN_MEMORY | - | - | - | - | |
+| 10만 | baseline (JPA saveAll) | 39.8초 | 3.5초 | 1.8초 | 45.4초 | 3회 평균 |
+| 100만 | baseline (JPA saveAll) | 442.7초 | 39.5초 | 20.3초 | 505.8초 | -Xmx4g 1회 측정, -Xmx1g 에서는 OOM |
 | 100만 | CHUNKED (16) | - | - | - | - | 힙 -Xmx 제한 |
 
 상세 기록과 분석: [Wiki - 성능 측정 기록](../../wiki)
