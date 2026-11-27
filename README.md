@@ -89,6 +89,8 @@ bash scripts/gen-datasets.sh                                        # macOS / Li
 ```
 커버리지: `build/reports/jacoco/test/html/index.html`
 
+> **Windows 에서 한글이 깨질 때**: PowerShell 에서 `chcp 65001` 후 실행하세요. Gradle / bootRun / 테스트 JVM 은 `gradle.properties`, `build.gradle` 에서 UTF-8 로 고정되어 있습니다.
+
 ## 6. API
 
 | Method | URL | 권한 | 설명 |
@@ -105,15 +107,24 @@ bash scripts/gen-datasets.sh                                        # macOS / Li
 
 ## 7. 성능
 
-> 측정 환경: Windows 11, CPU 20코어, RAM 16GB, JDK 21.0.12.1, MySQL 8.0.24, -Xmx1g (100만 baseline 성공 측정만 -Xmx4g)
+> 측정 환경: Windows 11, CPU 20코어, RAM 16GB, JDK 21.0.12.1, MySQL 8.0.24, -Xmx1g (100만 측정만 -Xmx4g)
 > 측정 방법: `./gradlew bootRun -Pxmx=1g --args="--spring.profiles.active=perf --perf.dataset=data/100k --perf.label=..."`
 > 3회 평균, 워밍업 1회 제외, 모든 실행에서 expected 와 100% 일치 확인
 
 | 데이터 규모 | 방식 | 업로드 적재 | 대조 | 결과 저장 | 합계 | 비고 |
 |---|---|---|---|---|---|---|
 | 10만 | baseline (JPA saveAll) | 39.8초 | 3.5초 | 1.8초 | 45.4초 | 3회 평균 |
+| 10만 | JDBC batch (size 500) | 8.2초 | 3.7초 | 0.3초 | 12.5초 | 3회 평균 |
+| 10만 | JDBC batch (size 1000) | 7.6초 | 3.2초 | 0.3초 | 11.4초 | 3회 평균, 기본값 |
+| 10만 | JDBC batch (size 5000) | 7.6초 | 3.6초 | 0.3초 | 11.7초 | 3회 평균 |
+| 10만 | JDBC batch (rewrite off, size 1000) | 23.0초 | 3.5초 | 1.1초 | 27.8초 | 3회 평균, rewriteBatchedStatements=false |
 | 100만 | baseline (JPA saveAll) | 442.7초 | 39.5초 | 20.3초 | 505.8초 | -Xmx4g 1회 측정, -Xmx1g 에서는 OOM |
+| 100만 | JDBC batch (size 1000) | 70.5초 | 35.7초 | 3.2초 | 112.2초 | -Xmx4g 1회 측정 |
 | 100만 | CHUNKED (16) | - | - | - | - | 힙 -Xmx 제한 |
+
+JDBC batch 로 업로드 적재는 10만 건에서 80.9%(39.8초 → 7.6초), 100만 건에서 84.1%(442.7초 → 70.5초) 줄었고 합계는 각각 74.9%, 77.8% 줄었습니다. batch size 는 1000 과 5000 이 같고 500 은 약 10% 느려 기본값 1000 을 유지했습니다. `rewriteBatchedStatements=false` 면 업로드가 약 3배 느려집니다.
+
+상세 기록과 분석: [Wiki - 성능 측정 기록](../../wiki)
 
 상세 기록과 분석: [Wiki - 성능 측정 기록](../../wiki)
 
