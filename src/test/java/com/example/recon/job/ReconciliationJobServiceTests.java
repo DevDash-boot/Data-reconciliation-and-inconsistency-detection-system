@@ -15,6 +15,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import com.example.recon.common.exception.JobFailedException;
+import com.example.recon.mismatch.MismatchBatchWriter;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doAnswer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -27,6 +34,7 @@ class ReconciliationJobServiceTests {
     @Autowired ReconciliationJobService jobService;
     @Autowired MismatchRepository mismatchRepository;
     @Autowired JdbcTemplate jdbc;
+    @MockitoSpyBean MismatchBatchWriter mismatchWriter;
 
     @AfterEach
     void cleanUp() {
@@ -102,5 +110,26 @@ class ReconciliationJobServiceTests {
         assertThatThrownBy(() -> jobService.run(JobRequest.of(up[0].batchId(), up[1].batchId(), "FUZZY")))
                 .isInstanceOf(BadRequestException.class);
         assertThat(jobService.list()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("저장 중 예외가 나면 Job 은 FAILED 로 남고 불일치는 하나도 저장되지 않는다")
+    void failureLeavesFailedJobAndNoPartialResults() {
+        UploadResult[] up = uploadSample();
+        doAnswer(inv -> {
+            inv.callRealMethod();                        // 먼저 실제로 저장한 뒤
+            throw new IllegalStateException("boom");    // 예외를 던진다 -> 롤백되어야 한다
+        }).when(mismatchWriter).insertAll(anyLong(), anyList());
+
+        assertThatThrownBy(() -> jobService.run(JobRequest.of(up[0].batchId(), up[1].batchId(), "EXACT")))
+            .isInstanceOf(JobFailedException.class)
+            .satisfies(e -> {
+                Long jobId = ((JobFailedException) e).getJobId();
+                JobResponse failed = jobService.get(jobId);
+
+                assertThat(failed.status()).isEqualTo("FAILED");
+                assertThat(failed.errorMessage()).contains("boom");
+                assertThat(mismatchRepository.findByJobId(jobId)).isEmpty();
+            });
     }
 }
