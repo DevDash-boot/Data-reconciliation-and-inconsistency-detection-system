@@ -56,4 +56,42 @@ class MatchingStrategyTest {
         assertThatThrownBy(() -> MatchingStrategies.of("FUZZY")).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> MatchingStrategies.of(null)).isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    @DisplayName("EXACT: 금액만 다르면 amount 차이 1건만 나온다")
+    void exactAmountOnlyDiff() {
+        List<FieldDiff> diffs = new ExactMatchStrategy().compare(A, new Row("O-1", 90, "PAID"));
+
+        assertThat(diffs).hasSize(1);
+        assertThat(diffs.get(0).field()).isEqualTo("amount");
+        assertThat(diffs.get(0).a()).isEqualTo("100");
+        assertThat(diffs.get(0).b()).isEqualTo("90");
+    }
+
+    @Test
+    @DisplayName("EXACT: 상태만 다르면 status 차이 1건만 나온다")
+    void exactStatusOnlyDiff() {
+        List<FieldDiff> diffs = new ExactMatchStrategy().compare(A, new Row("O-1", 100, "CANCELED"));
+
+        assertThat(diffs).hasSize(1);
+        assertThat(diffs.get(0).field()).isEqualTo("status");
+        assertThat(diffs.get(0).a()).isEqualTo("PAID");
+        assertThat(diffs.get(0).b()).isEqualTo("CANCELED");
+    }
+
+    @Test
+    @DisplayName("AMOUNT_ONLY: 금액이 다르면 amount 차이만 나온다 (상태가 달라도 status 는 안 나온다)")
+    void amountOnlyAmountDiff() {
+        List<FieldDiff> diffs = new AmountOnlyStrategy().compare(A, new Row("O-1", 90, "CANCELED"));
+
+        assertThat(diffs).hasSize(1);
+        assertThat(diffs.get(0).field()).isEqualTo("amount");
+    }
+
+    @Test
+    @DisplayName("전략 이름은 앞뒤 공백과 대소문자를 무시하고, 사용 가능한 이름 목록을 제공한다")
+    void lookupIgnoresCaseAndSpaces() {
+        assertThat(MatchingStrategies.of("  amount_only ").name()).isEqualTo("AMOUNT_ONLY");
+        assertThat(MatchingStrategies.names()).containsExactly("EXACT", "AMOUNT_ONLY");
+    }
 }
