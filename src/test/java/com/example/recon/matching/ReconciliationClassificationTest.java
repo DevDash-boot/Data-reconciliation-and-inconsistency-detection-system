@@ -95,4 +95,29 @@ class ReconciliationClassificationTest {
         assertThat(r.items().get(1).key()).isEqualTo("O-2");
         assertThat(r.items().get(2).key()).isEqualTo("O-3");
     }
+
+    @Test
+    @DisplayName("우선순위: A 에 없고 B 에 2건이면 DUPLICATE 가 MISSING_IN_A 보다 먼저")
+    void duplicateInBBeatsMissingInA() {
+        ReconciliationResult r = engine.reconcile(
+            List.of(),
+            List.of(row("O-1", 100, "PAID"), row("O-1", 100, "PAID")));
+
+        assertThat(r.items()).hasSize(1);
+        assertThat(r.items().get(0).type()).isEqualTo(MismatchType.DUPLICATE);
+        assertThat(r.items().get(0).detail()).isEqualTo("{\"countA\":0,\"countB\":2}");
+    }
+
+    @Test
+    @DisplayName("한 키는 하나의 유형으로만 분류되고, 값이 같은 키는 결과에 나오지 않는다")
+    void eachKeyGetsExactlyOneType() {
+        // O-1 일치, O-2 A 에만, O-3 금액 다름, O-4 B 에만
+        ReconciliationResult r = engine.reconcile(
+            List.of(row("O-1", 100, "PAID"), row("O-2", 100, "PAID"), row("O-3", 100, "PAID")),
+            List.of(row("O-1", 100, "PAID"), row("O-3", 90, "PAID"), row("O-4", 100, "PAID")));
+
+        assertThat(r.items()).extracting(MismatchItem::key).containsExactly("O-2", "O-3", "O-4");
+        assertThat(r.items()).extracting(MismatchItem::type).containsExactly(
+            MismatchType.MISSING_IN_B, MismatchType.VALUE_DIFF, MismatchType.MISSING_IN_A);
+    }
 }
