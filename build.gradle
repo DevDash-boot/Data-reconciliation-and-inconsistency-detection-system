@@ -72,9 +72,21 @@ tasks.register('generateSample', JavaExec) {
     args = opts
 }
 
+// 컴파일/실행/테스트 모두 UTF-8 로 고정한다. (Windows 터미널에서 한글 로그가 깨지는 문제 방지)
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+tasks.withType(JavaExec).configureEach {      // bootRun, generateSample
+    jvmArgs '-Dfile.encoding=UTF-8', '-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8'
+}
+tasks.withType(Test).configureEach {
+    jvmArgs '-Dfile.encoding=UTF-8', '-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8'
+}
+
 // 힙 크기 지정 예: ./gradlew bootRun -Pxmx=512m --args="..."
+// (jvmArgs = [...] 로 덮어쓰면 위의 UTF-8 옵션이 사라지므로 추가(append) 방식으로 쓴다)
 tasks.named('bootRun') {
     if (project.hasProperty('xmx')) {
-        jvmArgs = ["-Xmx${project.property('xmx')}".toString()]
+        jvmArgs "-Xmx${project.property('xmx')}".toString()
     }
 }
