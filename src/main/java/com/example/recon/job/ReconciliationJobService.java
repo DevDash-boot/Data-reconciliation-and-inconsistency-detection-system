@@ -163,10 +163,21 @@ public class ReconciliationJobService {
         timings.put("loadMs", totals.loadNs / 1_000_000);
         timings.put("compareMs", totals.compareNs / 1_000_000);
         timings.put("saveMs", totals.saveNs / 1_000_000);
-        log.info("Job #{} 완료 ({}): A={}, B={}, 불일치={}, 시간={}", jobId, mode,
+        log.info("Job #{} 완료 ({}): A={}, B={}, 불일치={}, 시간={}, 힙={}", jobId, mode,
                 totals.totalA, totals.totalB, totals.missingInA + totals.missingInB + totals.duplicate + totals.valueDiff,
-                timings);
+                timings, heapUsage());
         return JobResponse.from(job, timings, false);
+    }
+
+    /**
+     * 현재 JVM 힙 사용량을 "사용MB/최대MB" 로 돌려준다. (#6 메모리 사용량 로그)
+     * GC 시점에 따라 값이 흔들리는 대략적인 값이다.
+     */
+    private static String heapUsage() {
+        Runtime rt = Runtime.getRuntime();
+        long usedMb = (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024);
+        long maxMb = rt.maxMemory() / (1024 * 1024);
+        return usedMb + "MB/" + maxMb + "MB";
     }
 
     /** 범위 규칙 적용 -> 대조 -> 불일치 저장. 두 방식이 공통으로 쓴다. */
